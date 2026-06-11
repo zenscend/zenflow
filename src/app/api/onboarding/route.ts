@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: { code: "UNAUTHORIZED", message: "Not authenticated" } }, { status: 401 })
   }
 
-  if (session.user.organizationId) {
+  if (session.user.organisationId) {
     return NextResponse.json({ error: { code: "ALREADY_ONBOARDED", message: "Already part of an organization" } }, { status: 409 })
   }
 
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
   const { name, vat_number, company_reg_no, email, phone } = parsed.data
 
-  const org = await prisma.organization.create({
+  const org = await prisma.organisation.create({
     data: {
       name,
       vat_number: vat_number || null,
@@ -42,8 +42,14 @@ export async function POST(req: NextRequest) {
           role: "OWNER",
         },
       },
+      taxes: {
+        create: [
+          { name: "VAT", rate: "0.1500", is_active: true },
+          { name: "Exempt", rate: "0.0000", is_active: true },
+        ],
+      },
     },
   })
 
-  return NextResponse.json({ data: { organizationId: org.id } }, { status: 201 })
+  return NextResponse.json({ data: { organisationId: org.id } }, { status: 201 })
 }

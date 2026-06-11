@@ -10,9 +10,6 @@ const customerSchema = z.object({
   trading_name: z.string().optional().nullable(),
   company_reg_no: z.string().optional().nullable(),
   vat_number: z.string().optional().nullable(),
-  first_name: z.string().optional().nullable(),
-  last_name: z.string().optional().nullable(),
-  id_number: z.string().optional().nullable(),
   email: z.string().email().optional().nullable().or(z.literal("")),
   phone: z.string().optional().nullable(),
   alternate_phone: z.string().optional().nullable(),
@@ -31,7 +28,7 @@ const customerSchema = z.object({
 
 export async function GET(req: NextRequest) {
   const session = await auth()
-  if (!session?.user.organizationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
+  if (!session?.user.organisationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
   const search = searchParams.get("search") ?? ""
@@ -40,7 +37,7 @@ export async function GET(req: NextRequest) {
   const skip = (page - 1) * limit
 
   const where = {
-    organization_id: session.user.organizationId,
+    organisation_id: session.user.organisationId,
     is_active: true,
     ...(search ? {
       OR: [
@@ -77,14 +74,14 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await auth()
-  if (!session?.user.organizationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
+  if (!session?.user.organisationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
 
   const body = await req.json()
   const parsed = customerSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: { code: "VALIDATION_ERROR", details: parsed.error } }, { status: 400 })
 
   const customer = await prisma.customer.create({
-    data: { ...parsed.data, organization_id: session.user.organizationId },
+    data: { ...parsed.data, organisation_id: session.user.organisationId },
   })
 
   return NextResponse.json({ data: customer }, { status: 201 })

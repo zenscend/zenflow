@@ -4,18 +4,18 @@ import InvoiceForm from "@/components/invoices/InvoiceForm"
 
 export default async function NewInvoicePage() {
   const session = await auth()
-  const orgId = session!.user.organizationId!
+  const orgId = session!.user.organisationId!
 
   const [customers, products] = await Promise.all([
     prisma.customer.findMany({
-      where: { organization_id: orgId, is_active: true },
+      where: { organisation_id: orgId, is_active: true },
       orderBy: { display_name: "asc" },
       select: { id: true, display_name: true },
     }),
     prisma.product.findMany({
-      where: { organization_id: orgId, is_active: true },
+      where: { organisation_id: orgId, is_active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, unit_price: true, unit_type: true, is_taxable: true },
+      select: { id: true, name: true, unit_price: true, unit_type: true, default_tax_id: true },
     }),
   ])
 
@@ -27,7 +27,7 @@ export default async function NewInvoicePage() {
       </div>
       <InvoiceForm
         customers={customers}
-        products={products.map((p: { id: string; name: string; unit_price: any; unit_type: string; is_taxable: boolean }) => ({ ...p, unit_price: Number(p.unit_price) }))}
+        products={products.map((p: { id: string; name: string; unit_price: any; unit_type: string; default_tax_id: string | null }) => ({ ...p, unit_price: Number(p.unit_price) }))}
       />
     </div>
   )

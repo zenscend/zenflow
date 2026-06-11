@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useForm, useFieldArray, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -15,15 +16,13 @@ import { Separator } from "@/components/ui/separator"
 import { Trash2, Plus } from "lucide-react"
 import { formatZAR, formatDateShort } from "@/lib/utils"
 
-const VAT_RATE = 0.15
-
 const lineItemSchema = z.object({
   product_id: z.string().optional().nullable(),
   description: z.string().min(1, "Required"),
   quantity: z.coerce.number().min(0.001, "Must be > 0"),
   unit_price: z.coerce.number().min(0, "Must be ≥ 0"),
   unit_type: z.string().default("item"),
-  is_taxable: z.boolean().default(true),
+  tax_id: z.string().nullable().optional(),
   discount: z.coerce.number().min(0).max(100).default(0),
 })
 
@@ -39,7 +38,8 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 interface Customer { id: string; display_name: string }
-interface Product { id: string; name: string; unit_price: number; unit_type: string; is_taxable: boolean }
+interface Product { id: string; name: string; unit_price: number; unit_type: string; default_tax_id?: string | null }
+interface Tax { id: string; name: string; rate: string }
 
 interface Props {
   customers: Customer[]
@@ -60,6 +60,14 @@ function addDaysStr(days: number) {
 export default function QuoteForm({ customers, products, defaultValues, quoteId }: Props) {
   const router = useRouter()
   const isEdit = !!quoteId
+  const [taxes, setTaxes] = useState<Tax[]>([])
+
+  useEffect(() => {
+    fetch("/api/taxes")
+      .then((r) => r.json())
+      .then((body) => setTaxes(body.data ?? []))
+      .catch(() => {})
+  }, [])
 
   const { register, handleSubmit, control, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -67,25 +75,27 @@ export default function QuoteForm({ customers, products, defaultValues, quoteId 
     defaultValues: defaultValues ?? {
       issue_date: todayStr(),
       expiry_date: addDaysStr(30),
-      line_items: [{ description: "", quantity: 1, unit_price: 0, unit_type: "item", is_taxable: true, discount: 0 }],
+      line_items: [{ description: "", quantity: 1, unit_price: 0, unit_type: "item", tax_id: null, discount: 0 }],
     },
   })
 
   const { fields, append, remove } = useFieldArray({ control, name: "line_items" })
   const lineItems = useWatch({ control, name: "line_items" }) ?? []
 
-  // Live totals
+  // Live totals — look up tax rate from taxes array
+  const taxRateMap = new Map(taxes.map((t) => [t.id, Number(t.rate)]))
   const { subtotal, vatAmount, total } = lineItems.reduce(
     (acc, item) => {
       const qty = Number(item?.quantity) || 0
       const price = Number(item?.unit_price) || 0
       const disc = Number(item?.discount) || 0
       const lineTotal = qty * price * (1 - disc / 100)
-      const vat = item?.is_taxable ? lineTotal * VAT_RATE : 0
+      const taxRate = item?.tax_id ? (taxRateMap.get(item.tax_id) ?? 0) : 0
+      const tax = lineTotal * taxRate
       return {
         subtotal: acc.subtotal + lineTotal,
-        vatAmount: acc.vatAmount + vat,
-        total: acc.total + lineTotal + vat,
+        vatAmount: acc.vatAmount + tax,
+        total: acc.total + lineTotal + tax,
       }
     },
     { subtotal: 0, vatAmount: 0, total: 0 }
@@ -97,7 +107,7 @@ export default function QuoteForm({ customers, products, defaultValues, quoteId 
     setValue(`line_items.${index}.description`, p.name)
     setValue(`line_items.${index}.unit_price`, p.unit_price)
     setValue(`line_items.${index}.unit_type`, p.unit_type)
-    setValue(`line_items.${index}.is_taxable`, p.is_taxable)
+    setValue(`line_items.${index}.tax_id`, p.default_tax_id ?? null)
     setValue(`line_items.${index}.product_id`, p.id)
   }
 
@@ -137,7 +147,9 @@ export default function QuoteForm({ customers, products, defaultValues, quoteId 
               onValueChange={(v) => setValue("customer_id", v ?? "")}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select customer..." />
+                {watch("customer_id")
+                  ? <span>{customers.find(c => c.id === watch("customer_id"))?.display_name}</span>
+                  : <span className="text-muted-foreground">Select customer...</span>}
               </SelectTrigger>
               <SelectContent>
                 {customers.map((c) => (
@@ -172,19 +184,17 @@ export default function QuoteForm({ customers, products, defaultValues, quoteId 
           <CardTitle>Line Items</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Header row */}
-          <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_80px_40px] gap-2 text-xs text-muted-foreground font-medium px-1">
+          <div className="hidden md:grid grid-cols-[2fr_1fr_1fr_1fr_100px_40px] gap-2 text-xs text-muted-foreground font-medium px-1">
             <span>Description</span>
             <span>Qty</span>
             <span>Unit price (excl.)</span>
             <span>Disc %</span>
-            <span>Taxable</span>
+            <span>Tax</span>
             <span></span>
           </div>
 
           {fields.map((field, index) => (
             <div key={field.id} className="space-y-2 border rounded-lg p-3 md:border-0 md:p-0">
-              {/* Product picker */}
               {products.length > 0 && (
                 <div className="md:hidden">
                   <Select onValueChange={(v: string | null) => v && fillFromProduct(index, v)}>
@@ -200,8 +210,7 @@ export default function QuoteForm({ customers, products, defaultValues, quoteId 
                 </div>
               )}
 
-              <div className="md:grid md:grid-cols-[2fr_1fr_1fr_1fr_80px_40px] gap-2">
-                {/* Description + product fill */}
+              <div className="md:grid md:grid-cols-[2fr_1fr_1fr_1fr_100px_40px] gap-2">
                 <div className="space-y-1">
                   <Input
                     placeholder="Description"
@@ -255,19 +264,20 @@ export default function QuoteForm({ customers, products, defaultValues, quoteId 
                   {...register(`line_items.${index}.discount`)}
                 />
 
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setValue(`line_items.${index}.is_taxable`, !(watch(`line_items.${index}.is_taxable`) as boolean))}
-                    className={`w-full h-9 rounded-md text-xs font-medium border transition-colors ${
-                      (watch(`line_items.${index}.is_taxable`) as boolean)
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background text-muted-foreground border-input"
-                    }`}
-                  >
-                    VAT
-                  </button>
-                </div>
+                <Select
+                  value={(watch(`line_items.${index}.tax_id`) ?? "") as string}
+                  onValueChange={(v: string | null) => setValue(`line_items.${index}.tax_id`, v || null)}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="No tax" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">No tax</SelectItem>
+                    {taxes.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
                 <Button
                   type="button"
@@ -287,7 +297,7 @@ export default function QuoteForm({ customers, products, defaultValues, quoteId 
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => append({ description: "", quantity: 1, unit_price: 0, unit_type: "item", is_taxable: true, discount: 0 })}
+            onClick={() => append({ description: "", quantity: 1, unit_price: 0, unit_type: "item", tax_id: null, discount: 0 })}
           >
             <Plus className="h-4 w-4 mr-1" /> Add line item
           </Button>
@@ -296,25 +306,23 @@ export default function QuoteForm({ customers, products, defaultValues, quoteId 
             <p className="text-destructive text-xs">{errors.line_items.root.message}</p>
           )}
 
-          {/* Totals */}
           <div className="border-t pt-4 space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Subtotal (excl. VAT)</span>
+              <span className="text-muted-foreground">Subtotal (excl. tax)</span>
               <span className="font-medium">{formatZAR(subtotal)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">VAT (15%)</span>
+              <span className="text-muted-foreground">Tax</span>
               <span className="font-medium">{formatZAR(vatAmount)}</span>
             </div>
             <div className="flex justify-between text-base font-bold border-t pt-2">
-              <span>Total (incl. VAT)</span>
+              <span>Total (incl. tax)</span>
               <span>{formatZAR(total)}</span>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Notes */}
       <Card>
         <CardHeader>
           <CardTitle>Notes & Terms</CardTitle>

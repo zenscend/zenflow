@@ -42,8 +42,8 @@ export default function OnboardingPage() {
       return
     }
 
-    // Patch the JWT cookie so the new organizationId is included, then hard-reload
-    await update({ organizationId: body.data.organizationId, orgRole: "OWNER" })
+    // Patch the JWT cookie so the new organisationId is included, then hard-reload
+    await update({ organisationId: body.data.organisationId, orgRole: "OWNER" })
     window.location.href = "/dashboard"
   }
 

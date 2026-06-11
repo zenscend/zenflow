@@ -264,7 +264,7 @@ export function InvoicePDF({ invoice, organization }: InvoicePDFProps) {
               <Text style={[s.tdText, s.cQty]}>{Number(item.quantity)}</Text>
               <Text style={[s.tdText, s.cUnit]}>{fmt(item.unit_price)}</Text>
               <Text style={[s.tdText, s.cVat]}>
-                {item.is_taxable ? fmt(item.vat_amount) : "R 0.00"}
+                {fmt(item.tax_amount)}
               </Text>
               <Text style={[s.tdText, s.cAmount]}>{fmt(item.line_total)}</Text>
             </View>
@@ -279,7 +279,7 @@ export function InvoicePDF({ invoice, organization }: InvoicePDFProps) {
               <Text style={s.totalsValue}>{fmt(invoice.subtotal)}</Text>
             </View>
             <View style={s.totalsRow}>
-              <Text style={s.totalsLabel}>VAT</Text>
+              <Text style={s.totalsLabel}>Tax</Text>
               <Text style={s.totalsValue}>{fmt(invoice.vat_amount)}</Text>
             </View>
             <View style={s.totalFinal}>

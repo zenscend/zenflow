@@ -26,12 +26,12 @@ export async function middleware(req: NextRequest) {
   const isApi = nextUrl.pathname.startsWith("/api/")
 
   // Authenticated but no org → onboarding (skip for API routes — they handle auth themselves)
-  if (!token.organizationId && nextUrl.pathname !== "/onboarding" && !isApi) {
+  if (!token.organisationId && nextUrl.pathname !== "/onboarding" && !isApi) {
     return NextResponse.redirect(new URL("/onboarding", nextUrl))
   }
 
   // Has org but trying to access onboarding → dashboard
-  if (token.organizationId && nextUrl.pathname === "/onboarding") {
+  if (token.organisationId && nextUrl.pathname === "/onboarding") {
     return NextResponse.redirect(new URL("/dashboard", nextUrl))
   }
 

@@ -11,13 +11,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   // Users without an org are handled by middleware → /onboarding
   // The onboarding page itself lives in this group, so we must not redirect here
-  const orgId = session.user.organizationId
+  const orgId = session.user.organisationId
   if (!orgId) {
     // Only allow the onboarding route through without an org
     return <>{children}</>
   }
 
-  const org = await prisma.organization.findUnique({
+  const org = await prisma.organisation.findUnique({
     where: { id: orgId },
     select: { name: true },
   })

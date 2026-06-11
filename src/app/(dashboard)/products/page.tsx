@@ -10,11 +10,12 @@ import { formatZAR } from "@/lib/utils"
 
 export default async function ProductsPage() {
   const session = await auth()
-  const orgId = session!.user.organizationId!
+  const orgId = session!.user.organisationId!
 
   const products = await prisma.product.findMany({
-    where: { organization_id: orgId, is_active: true },
+    where: { organisation_id: orgId, is_active: true },
     orderBy: { name: "asc" },
+    include: { default_tax: { select: { name: true, rate: true } } },
   })
 
   return (
@@ -62,8 +63,8 @@ export default async function ProductsPage() {
                     <TableCell className="text-muted-foreground">{p.unit_type}</TableCell>
                     <TableCell className="font-medium">{formatZAR(p.unit_price)}</TableCell>
                     <TableCell>
-                      <Badge variant={p.is_taxable ? "default" : "outline"} className="text-xs">
-                        {p.is_taxable ? "15% VAT" : "Exempt"}
+                      <Badge variant={p.default_tax ? "default" : "outline"} className="text-xs">
+                        {p.default_tax ? p.default_tax.name : "No tax"}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">

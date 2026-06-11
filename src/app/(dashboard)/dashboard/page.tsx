@@ -6,7 +6,7 @@ import { FileText, Receipt, AlertCircle, TrendingUp } from "lucide-react"
 
 export default async function DashboardPage() {
   const session = await auth()
-  const orgId = session!.user.organizationId!
+  const orgId = session!.user.organisationId!
 
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
@@ -22,31 +22,31 @@ export default async function DashboardPage() {
     recentQuotes,
   ] = await Promise.all([
     prisma.invoice.aggregate({
-      where: { organization_id: orgId, status: "SENT" },
+      where: { organisation_id: orgId, status: "SENT" },
       _count: true,
       _sum: { total: true },
     }),
     prisma.invoice.aggregate({
-      where: { organization_id: orgId, status: "OVERDUE" },
+      where: { organisation_id: orgId, status: "OVERDUE" },
       _count: true,
       _sum: { total: true },
     }),
     prisma.invoice.aggregate({
-      where: { organization_id: orgId, status: "PAID", paid_at: { gte: startOfMonth } },
+      where: { organisation_id: orgId, status: "PAID", paid_at: { gte: startOfMonth } },
       _sum: { paid_amount: true },
     }),
     prisma.invoice.aggregate({
-      where: { organization_id: orgId, status: "PAID", paid_at: { gte: startOfLastMonth, lte: endOfLastMonth } },
+      where: { organisation_id: orgId, status: "PAID", paid_at: { gte: startOfLastMonth, lte: endOfLastMonth } },
       _sum: { paid_amount: true },
     }),
     prisma.invoice.findMany({
-      where: { organization_id: orgId },
+      where: { organisation_id: orgId },
       orderBy: { created_at: "desc" },
       take: 5,
       include: { customer: { select: { display_name: true } } },
     }),
     prisma.quote.findMany({
-      where: { organization_id: orgId },
+      where: { organisation_id: orgId },
       orderBy: { created_at: "desc" },
       take: 5,
       include: { customer: { select: { display_name: true } } },

@@ -13,7 +13,8 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 
 const registerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  first_name: z.string().min(1, "First name is required"),
+  last_name: z.string().min(1, "Last name is required"),
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string(),
@@ -36,7 +37,7 @@ export default function RegisterPage() {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: data.name, email: data.email, password: data.password }),
+      body: JSON.stringify({ first_name: data.first_name, last_name: data.last_name, email: data.email, password: data.password }),
     })
 
     if (!res.ok) {
@@ -79,10 +80,17 @@ export default function RegisterPage() {
               {error}
             </div>
           )}
-          <div className="space-y-2">
-            <Label htmlFor="name">Full name</Label>
-            <Input id="name" placeholder="Jane Smith" {...register("name")} />
-            {errors.name && <p className="text-destructive text-xs">{errors.name.message}</p>}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="first_name">First name</Label>
+              <Input id="first_name" placeholder="Jane" {...register("first_name")} />
+              {errors.first_name && <p className="text-destructive text-xs">{errors.first_name.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="last_name">Last name</Label>
+              <Input id="last_name" placeholder="Smith" {...register("last_name")} />
+              {errors.last_name && <p className="text-destructive text-xs">{errors.last_name.message}</p>}
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>

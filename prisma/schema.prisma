@@ -4,55 +4,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
 }
 
-// ─────────────────────────────────────────────
-// MULTI-TENANCY ANCHOR
-// ─────────────────────────────────────────────
-
-model organization {
-  id               String           @id @default(cuid())
-  name             String
-  trading_name     String?
-  company_reg_no   String?
-  vat_number       String?
-  logo_url         String?
-
-  address_line_1   String?
-  address_line_2   String?
-  city             String?
-  province         sa_province?
-  postal_code      String?
-  country          String           @default("South Africa")
-
-  phone            String?
-  email            String?
-  website          String?
-
-  bank_name        String?
-  bank_account_name String?
-  bank_account_no  String?
-  bank_branch_code String?
-  bank_account_type bank_account_type?
-
-  quote_prefix                 String @default("QUO")
-  invoice_prefix               String @default("INV")
-  next_quote_no                Int    @default(1)
-  next_invoice_no              Int    @default(1)
-  default_payment_terms_days   Int    @default(30)
-  default_quote_valid_days     Int    @default(30)
-  default_notes                String?
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  users     user_organization[]
-  customers customer[]
-  products  product[]
-  quotes    quote[]
-  invoices  invoice[]
-}
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
 
 enum sa_province {
   EASTERN_CAPE
@@ -72,13 +29,115 @@ enum bank_account_type {
   TRANSMISSION
 }
 
-// ─────────────────────────────────────────────
-// AUTH
-// ─────────────────────────────────────────────
+enum global_role {
+  USER
+  SUPER_ADMIN
+}
+
+enum org_role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum customer_type {
+  BUSINESS
+  INDIVIDUAL
+}
+
+enum product_type {
+  SERVICE
+  PHYSICAL
+}
+
+enum quote_status {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum invoice_status {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+// ─── ORGANISATION ─────────────────────────────────────────────────────────────
+
+model organisation {
+  id             String  @id @default(uuid())
+  name           String
+  trading_name   String?
+  company_reg_no String?
+  vat_number     String?
+  logo_url       String?
+
+  address_line_1 String?
+  address_line_2 String?
+  city           String?
+  province       sa_province?
+  postal_code    String?
+  country        String       @default("South Africa")
+
+  phone   String?
+  email   String?
+  website String?
+
+  bank_name         String?
+  bank_account_name String?
+  bank_account_no   String?
+  bank_branch_code  String?
+  bank_account_type bank_account_type?
+
+  quote_prefix               String @default("QUO")
+  invoice_prefix             String @default("INV")
+  next_quote_no              Int    @default(1)
+  next_invoice_no            Int    @default(1)
+  default_payment_terms_days Int    @default(30)
+  default_quote_valid_days   Int    @default(30)
+  default_notes              String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  users                 user_organisation[]
+  taxes                 tax[]
+  customers             customer[]
+  contact_organisations contact_organisation[]
+  products              product[]
+  quotes                quote[]
+  invoices              invoice[]
+}
+
+// ─── TAX ──────────────────────────────────────────────────────────────────────
+
+model tax {
+  id              String  @id @default(uuid())
+  organisation_id String
+  name            String  // "VAT", "Zero-rated", "Exempt"
+  rate            Decimal @db.Decimal(6, 4) // 0.1500
+  is_active       Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  organisation organisation @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+  line_items   line_item[]
+  products     product[]
+
+  @@index([organisation_id, is_active])
+}
+
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
 
 model user {
-  id             String      @id @default(cuid())
-  name           String?
+  id             String      @id @default(uuid())
+  first_name     String?
+  last_name      String?
   email          String      @unique
   password_hash  String
   email_verified DateTime?
@@ -88,18 +147,13 @@ model user {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  organizations user_organization[]
+  organisations user_organisation[]
 }
 
-enum global_role {
-  USER
-  SUPER_ADMIN
-}
-
-model user_organization {
-  id              String   @id @default(cuid())
+model user_organisation {
+  id              String   @id @default(uuid())
   user_id         String
-  organization_id String
+  organisation_id String
   role            org_role @default(MEMBER)
   joined_at       DateTime @default(now())
 
@@ -107,35 +161,58 @@ model user_organization {
   updated_at DateTime @updatedAt
 
   user         user         @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  organization organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  organisation organisation @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
 
-  @@unique([user_id, organization_id])
-  @@index([organization_id])
+  @@unique([user_id, organisation_id])
+  @@index([organisation_id])
 }
 
-enum org_role {
-  OWNER
-  ADMIN
-  MEMBER
+// ─── CONTACTS (CRM) ───────────────────────────────────────────────────────────
+// A contact is a natural person who may be linked to one or many organisations
+// via the contact_organisation junction table.
+
+model contact {
+  id         String  @id @default(uuid())
+  first_name String
+  last_name  String
+  email      String?
+  phone      String?
+  id_number  String?
+  notes      String?
+  is_active  Boolean @default(true)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  organisations contact_organisation[]
+  customers     customer[]
 }
 
-// ─────────────────────────────────────────────
-// CUSTOMERS
-// ─────────────────────────────────────────────
+model contact_organisation {
+  id              String   @id @default(uuid())
+  contact_id      String
+  organisation_id String
+  created_at      DateTime @default(now())
+
+  contact      contact      @relation(fields: [contact_id],      references: [id], onDelete: Cascade)
+  organisation organisation @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+
+  @@unique([contact_id, organisation_id])
+  @@index([organisation_id])
+}
+
+// ─── CUSTOMERS ────────────────────────────────────────────────────────────────
 
 model customer {
-  id              String        @id @default(cuid())
-  organization_id String
+  id              String        @id @default(uuid())
+  organisation_id String
   type            customer_type @default(BUSINESS)
+  contact_id      String?       // optional link to a contact record
 
   company_name   String?
   trading_name   String?
   company_reg_no String?
   vat_number     String?
-
-  first_name String?
-  last_name  String?
-  id_number  String?
 
   display_name String
 
@@ -162,52 +239,45 @@ model customer {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  organization organization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  organisation organisation @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+  contact      contact?      @relation(fields: [contact_id], references: [id], onDelete: SetNull)
   quotes       quote[]
   invoices     invoice[]
 
-  @@index([organization_id])
-  @@index([organization_id, is_active])
+  @@index([organisation_id])
+  @@index([organisation_id, is_active])
 }
 
-enum customer_type {
-  BUSINESS
-  INDIVIDUAL
-}
-
-// ─────────────────────────────────────────────
-// PRODUCT / SERVICE CATALOG
-// ─────────────────────────────────────────────
+// ─── PRODUCTS ─────────────────────────────────────────────────────────────────
 
 model product {
-  id              String  @id @default(cuid())
-  organization_id String
+  id              String       @id @default(uuid())
+  organisation_id String
+  type            product_type @default(SERVICE)
   name            String
   description     String?
-  unit_price      Decimal @db.Decimal(15, 2)
-  unit_type       String  @default("item")
-  is_taxable      Boolean @default(true)
-  is_active       Boolean @default(true)
+  unit_price      Decimal      @db.Decimal(15, 2)
+  unit_type       String       @default("item")
+  default_tax_id  String?      // null = not taxable by default
+  is_active       Boolean      @default(true)
   sku             String?
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  organization      organization       @relation(fields: [organization_id], references: [id], onDelete: Cascade)
-  quote_line_items  quote_line_item[]
-  invoice_line_items invoice_line_item[]
+  organisation      organisation        @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+  default_tax       tax?                @relation(fields: [default_tax_id], references: [id], onDelete: SetNull)
+  product_line_items product_line_item[]
 
-  @@index([organization_id])
-  @@index([organization_id, is_active])
+  @@index([organisation_id])
+  @@index([organisation_id, is_active])
 }
 
-// ─────────────────────────────────────────────
-// QUOTES
-// ─────────────────────────────────────────────
+// ─── QUOTES ───────────────────────────────────────────────────────────────────
 
 model quote {
-  id              String       @id @default(cuid())
-  organization_id String
+  id              String       @id @default(uuid())
+  organisation_id String
   customer_id     String
   quote_number    String
   status          quote_status @default(DRAFT)
@@ -227,57 +297,24 @@ model quote {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  organization organization      @relation(fields: [organization_id], references: [id], onDelete: Cascade)
-  customer     customer          @relation(fields: [customer_id], references: [id])
-  line_items   quote_line_item[]
-  invoice      invoice?          @relation(fields: [converted_to_invoice_id], references: [id])
+  organisation organisation @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+  customer     customer     @relation(fields: [customer_id], references: [id])
+  invoice      invoice?     @relation(fields: [converted_to_invoice_id], references: [id])
+  // Line items loaded via: prisma.line_item.findMany({ where: { source: "quote", source_id: id } })
 
-  @@unique([organization_id, quote_number])
-  @@index([organization_id, status])
-  @@index([organization_id, customer_id])
+  @@unique([organisation_id, quote_number])
+  @@index([organisation_id, status])
+  @@index([organisation_id, customer_id])
 }
 
-enum quote_status {
-  DRAFT
-  SENT
-  ACCEPTED
-  DECLINED
-  EXPIRED
-}
-
-model quote_line_item {
-  id          String  @id @default(cuid())
-  quote_id    String
-  product_id  String?
-  description String
-  quantity    Decimal @db.Decimal(10, 3)
-  unit_price  Decimal @db.Decimal(15, 2)
-  unit_type   String  @default("item")
-  is_taxable  Boolean @default(true)
-  discount    Decimal @db.Decimal(5, 2) @default(0)
-  line_total  Decimal @db.Decimal(15, 2)
-  vat_amount  Decimal @db.Decimal(15, 2)
-  sort_order  Int     @default(0)
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  quote   quote    @relation(fields: [quote_id], references: [id], onDelete: Cascade)
-  product product? @relation(fields: [product_id], references: [id], onDelete: SetNull)
-
-  @@index([quote_id])
-}
-
-// ─────────────────────────────────────────────
-// INVOICES
-// ─────────────────────────────────────────────
+// ─── INVOICES ─────────────────────────────────────────────────────────────────
 
 model invoice {
-  id               String         @id @default(cuid())
-  organization_id  String
+  id               String         @id @default(uuid())
+  organisation_id  String
   customer_id      String
   invoice_number   String
-  source_quote_id  String?
+  quote_id         String?        // set when converted from a quote
   status           invoice_status @default(DRAFT)
   title            String?
   notes            String?
@@ -298,44 +335,69 @@ model invoice {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  organization organization       @relation(fields: [organization_id], references: [id], onDelete: Cascade)
-  customer     customer           @relation(fields: [customer_id], references: [id])
-  line_items   invoice_line_item[]
+  organisation organisation @relation(fields: [organisation_id], references: [id], onDelete: Cascade)
+  customer     customer     @relation(fields: [customer_id], references: [id])
   quote        quote?
+  // Line items loaded via: prisma.line_item.findMany({ where: { source: "invoice", source_id: id } })
 
-  @@unique([organization_id, invoice_number])
-  @@index([organization_id, status])
-  @@index([organization_id, due_date])
-  @@index([organization_id, customer_id])
+  @@unique([organisation_id, invoice_number])
+  @@index([organisation_id, status])
+  @@index([organisation_id, due_date])
+  @@index([organisation_id, customer_id])
 }
 
-enum invoice_status {
-  DRAFT
-  SENT
-  PAID
-  OVERDUE
-  CANCELLED
-}
+// ─── LINE ITEMS ───────────────────────────────────────────────────────────────
+// source: "quote" | "invoice"  (enforced by CHECK constraint in migration)
+// source_id: id of the parent quote or invoice (no DB FK — manual cascade)
+// type: 1 = product (catalog), 2 = custom (free-form)
+//
+// Sub-tables carry the type-specific fields:
+//   type=1 → product_line_item (product_id NOT NULL, description snapshot, unit_price, unit_type)
+//   type=2 → custom_line_item  (description, unit_price, unit_type)
+//
+// tax_id is NOT NULL — use the seeded "Exempt" tax (rate=0) for untaxed lines.
 
-model invoice_line_item {
-  id          String  @id @default(cuid())
-  invoice_id  String
-  product_id  String?
-  description String
-  quantity    Decimal @db.Decimal(10, 3)
-  unit_price  Decimal @db.Decimal(15, 2)
-  unit_type   String  @default("item")
-  is_taxable  Boolean @default(true)
-  discount    Decimal @db.Decimal(5, 2) @default(0)
-  line_total  Decimal @db.Decimal(15, 2)
-  vat_amount  Decimal @db.Decimal(15, 2)
-  sort_order  Int     @default(0)
+model line_item {
+  id        String @id @default(uuid())
+  source    String // "quote" | "invoice"
+  source_id String // parent id
+  tax_id    String // NOT NULL — select "Exempt" for untaxed lines
+  type      Int    // 1=product, 2=custom
+
+  quantity   Decimal @db.Decimal(10, 3)
+  discount   Decimal @db.Decimal(5, 2)  @default(0)
+  line_total Decimal @db.Decimal(15, 2)
+  tax_amount Decimal @db.Decimal(15, 2) @default(0)
+  sort_order Int     @default(0)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  invoice invoice  @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
-  product product? @relation(fields: [product_id], references: [id], onDelete: SetNull)
+  tax              tax               @relation(fields: [tax_id], references: [id], onDelete: Restrict)
+  product_line_item product_line_item?
+  custom_line_item  custom_line_item?
 
-  @@index([invoice_id])
+  @@index([source, source_id])
+}
+
+model product_line_item {
+  id           String  @id @default(uuid())
+  line_item_id String  @unique
+  product_id   String  // NOT NULL — products are soft-deleted, never hard-deleted
+  description  String  // snapshot of product name at time of creation
+  unit_price   Decimal @db.Decimal(15, 2)
+  unit_type    String  @default("item")
+
+  line_item line_item @relation(fields: [line_item_id], references: [id], onDelete: Cascade)
+  product   product   @relation(fields: [product_id],   references: [id], onDelete: Restrict)
+}
+
+model custom_line_item {
+  id           String  @id @default(uuid())
+  line_item_id String  @unique
+  description  String
+  unit_price   Decimal @db.Decimal(15, 2)
+  unit_type    String  @default("item")
+
+  line_item line_item @relation(fields: [line_item_id], references: [id], onDelete: Cascade)
 }

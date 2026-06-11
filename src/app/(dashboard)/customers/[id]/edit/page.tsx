@@ -8,7 +8,7 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
   const { id } = await params
 
   const customer = await prisma.customer.findFirst({
-    where: { id, organization_id: session!.user.organizationId! },
+    where: { id, organisation_id: session!.user.organisationId! },
   })
 
   if (!customer) notFound()
@@ -28,9 +28,6 @@ export default async function EditCustomerPage({ params }: { params: Promise<{ i
           trading_name: customer.trading_name,
           company_reg_no: customer.company_reg_no,
           vat_number: customer.vat_number,
-          first_name: customer.first_name,
-          last_name: customer.last_name,
-          id_number: customer.id_number,
           email: customer.email,
           phone: customer.phone,
           alternate_phone: customer.alternate_phone,

@@ -19,8 +19,9 @@ interface TopbarProps {
 export default function Topbar({ orgName }: TopbarProps) {
   const { data: session } = useSession()
 
-  const initials = session?.user?.name
-    ? session.user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+  const fullName = [session?.user?.firstName, session?.user?.lastName].filter(Boolean).join(" ")
+  const initials = fullName
+    ? fullName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "?"
 
   return (
@@ -44,7 +45,7 @@ export default function Topbar({ orgName }: TopbarProps) {
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>
             <div className="flex flex-col space-y-0.5">
-              <span className="text-sm font-medium">{session?.user?.name}</span>
+              <span className="text-sm font-medium">{fullName || session?.user?.email}</span>
               <span className="text-xs text-muted-foreground">{session?.user?.email}</span>
             </div>
           </DropdownMenuLabel>

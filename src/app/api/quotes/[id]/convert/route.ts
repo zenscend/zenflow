@@ -2,16 +2,15 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { addDays } from "@/lib/utils"
-import { Decimal } from "@prisma/client/runtime/client"
 
 export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!session?.user.organizationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
+  if (!session?.user.organisationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
 
   const { id } = await params
+
   const quote = await prisma.quote.findFirst({
-    where: { id, organization_id: session.user.organizationId },
-    include: { line_items: { orderBy: { sort_order: "asc" } } },
+    where: { id, organisation_id: session.user.organisationId },
   })
 
   if (!quote) return NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 })
@@ -20,10 +19,15 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: { code: "INVALID_STATUS", message: "Only DRAFT, SENT, or ACCEPTED quotes can be converted" } }, { status: 409 })
   }
 
+  const quoteLineItems = await prisma.line_item.findMany({
+    where: { source: "quote", source_id: id },
+    orderBy: { sort_order: "asc" },
+    include: { product_line_item: true, custom_line_item: true },
+  })
+
   const invoice = await prisma.$transaction(async (tx: any) => {
-    // Atomically get invoice number
-    const org = await tx.organization.update({
-      where: { id: session.user.organizationId! },
+    const org = await tx.organisation.update({
+      where: { id: session.user.organisationId! },
       data: { next_invoice_no: { increment: 1 } },
       select: { next_invoice_no: true, invoice_prefix: true, default_payment_terms_days: true },
     })
@@ -34,10 +38,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const inv = await tx.invoice.create({
       data: {
-        organization_id: session.user.organizationId!,
+        organisation_id: session.user.organisationId!,
         customer_id: quote.customer_id,
         invoice_number: invoiceNumber,
-        source_quote_id: quote.id,
+        quote_id: quote.id,
         title: quote.title,
         notes: quote.notes,
         issue_date: issueDate,
@@ -45,24 +49,45 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         subtotal: quote.subtotal,
         vat_amount: quote.vat_amount,
         total: quote.total,
-        line_items: {
-          create: quote.line_items.map((item: any) => ({
-            product_id: item.product_id,
-            description: item.description,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            unit_type: item.unit_type,
-            is_taxable: item.is_taxable,
-            discount: item.discount,
-            line_total: item.line_total,
-            vat_amount: item.vat_amount,
-            sort_order: item.sort_order,
-          })),
-        },
       },
     })
 
-    // Link quote to invoice and mark accepted
+    for (const item of quoteLineItems) {
+      const li = await tx.line_item.create({
+        data: {
+          source: "invoice",
+          source_id: inv.id,
+          tax_id: item.tax_id,
+          type: item.type,
+          quantity: item.quantity,
+          discount: item.discount,
+          line_total: item.line_total,
+          tax_amount: item.tax_amount,
+          sort_order: item.sort_order,
+        },
+      })
+      if (item.product_line_item) {
+        await tx.product_line_item.create({
+          data: {
+            line_item_id: li.id,
+            product_id: item.product_line_item.product_id,
+            description: item.product_line_item.description,
+            unit_price: item.product_line_item.unit_price,
+            unit_type: item.product_line_item.unit_type,
+          },
+        })
+      } else if (item.custom_line_item) {
+        await tx.custom_line_item.create({
+          data: {
+            line_item_id: li.id,
+            description: item.custom_line_item.description,
+            unit_price: item.custom_line_item.unit_price,
+            unit_type: item.custom_line_item.unit_type,
+          },
+        })
+      }
+    }
+
     await tx.quote.update({
       where: { id: quote.id },
       data: {

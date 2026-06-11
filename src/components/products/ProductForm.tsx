@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -20,10 +21,12 @@ const schema = z.object({
   description: z.string().optional().nullable(),
   unit_price: z.coerce.number().min(0, "Price must be 0 or more"),
   unit_type: z.string().default("item"),
-  is_taxable: z.boolean().default(true),
+  default_tax_id: z.string().nullable().optional(),
   sku: z.string().optional().nullable(),
 })
 type FormData = z.infer<typeof schema>
+
+interface Tax { id: string; name: string; rate: string }
 
 interface Props {
   defaultValues?: Partial<FormData>
@@ -33,11 +36,19 @@ interface Props {
 export default function ProductForm({ defaultValues, productId }: Props) {
   const router = useRouter()
   const isEdit = !!productId
+  const [taxes, setTaxes] = useState<Tax[]>([])
+
+  useEffect(() => {
+    fetch("/api/taxes")
+      .then((r) => r.json())
+      .then((body) => setTaxes(body.data ?? []))
+      .catch(() => {})
+  }, [])
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<FormData>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     resolver: zodResolver(schema) as any,
-    defaultValues: defaultValues ?? { unit_type: "item", is_taxable: true },
+    defaultValues: defaultValues ?? { unit_type: "item", default_tax_id: null },
   })
 
   async function onSubmit(data: FormData) {
@@ -85,16 +96,10 @@ export default function ProductForm({ defaultValues, productId }: Props) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Unit price (excl. VAT) <span className="text-destructive">*</span></Label>
+              <Label>Unit price (excl. tax) <span className="text-destructive">*</span></Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">R</span>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="pl-7"
-                  {...register("unit_price")}
-                />
+                <Input type="number" step="0.01" min="0" className="pl-7" {...register("unit_price")} />
               </div>
               {errors.unit_price && <p className="text-destructive text-xs">{errors.unit_price.message}</p>}
             </div>
@@ -102,44 +107,31 @@ export default function ProductForm({ defaultValues, productId }: Props) {
             <div className="space-y-2">
               <Label>Unit type</Label>
               <Select value={watch("unit_type")} onValueChange={(v) => setValue("unit_type", v ?? "item")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {UNIT_TYPES.map((u) => (
-                    <SelectItem key={u} value={u}>{u}</SelectItem>
-                  ))}
+                  {UNIT_TYPES.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label>VAT treatment</Label>
-            <div className="flex items-center gap-3 pt-1">
-              <button
-                type="button"
-                onClick={() => setValue("is_taxable", true)}
-                className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
-                  watch("is_taxable")
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-foreground border-input hover:bg-muted"
-                }`}
-              >
-                Taxable (15% VAT)
-              </button>
-              <button
-                type="button"
-                onClick={() => setValue("is_taxable", false)}
-                className={`px-4 py-2 rounded-md text-sm font-medium border transition-colors ${
-                  !watch("is_taxable")
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-foreground border-input hover:bg-muted"
-                }`}
-              >
-                VAT Exempt
-              </button>
-            </div>
+            <Label>Default tax</Label>
+            <Select
+              value={(watch("default_tax_id") ?? "") as string}
+              onValueChange={(v) => setValue("default_tax_id", v || null)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="No tax" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">No tax</SelectItem>
+                {taxes.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name} ({(Number(t.rate) * 100).toFixed(0)}%)</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Applied by default when this item is added to a quote or invoice</p>
           </div>
         </CardContent>
       </Card>
@@ -147,9 +139,7 @@ export default function ProductForm({ defaultValues, productId }: Props) {
       <Separator />
 
       <div className="flex gap-3 justify-end">
-        <Button type="button" variant="outline" onClick={() => router.push("/products")}>
-          Cancel
-        </Button>
+        <Button type="button" variant="outline" onClick={() => router.push("/products")}>Cancel</Button>
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Saving..." : isEdit ? "Save changes" : "Create item"}
         </Button>

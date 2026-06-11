@@ -81,10 +81,10 @@ export default function InvoiceDetailPage() {
             <span className={`text-sm px-2 py-1 rounded-full font-medium ${STATUS_COLORS[status]}`}>{status}</span>
           </div>
           {invoice.title && <p className="text-muted-foreground mt-1">{invoice.title}</p>}
-          {invoice.source_quote_id && (
+          {invoice.quote_id && (
             <p className="text-sm text-muted-foreground mt-1">
               Created from quote —{" "}
-              <Link href={`/quotes/${invoice.source_quote_id}`} className="text-primary underline">
+              <Link href={`/quotes/${invoice.quote_id}`} className="text-primary underline">
                 View quote
               </Link>
             </p>
@@ -213,15 +213,15 @@ export default function InvoiceDetailPage() {
                   <td className="text-right py-2">{formatZAR(item.unit_price)}</td>
                   <td className="text-right py-2">{Number(item.discount) > 0 ? `${Number(item.discount)}%` : "-"}</td>
                   <td className="text-right py-2">{formatZAR(item.line_total)}</td>
-                  <td className="text-right py-2">{item.is_taxable ? formatZAR(item.vat_amount) : "Exempt"}</td>
+                  <td className="text-right py-2">{formatZAR(item.tax_amount)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <div className="mt-4 space-y-2 text-sm border-t pt-4">
-            <div className="flex justify-between"><span className="text-muted-foreground">Subtotal (excl. VAT)</span><span className="font-medium">{formatZAR(invoice.subtotal)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">VAT (15%)</span><span className="font-medium">{formatZAR(invoice.vat_amount)}</span></div>
-            <div className="flex justify-between text-base font-bold border-t pt-2"><span>Total (incl. VAT)</span><span>{formatZAR(invoice.total)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Subtotal (excl. tax)</span><span className="font-medium">{formatZAR(invoice.subtotal)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Tax</span><span className="font-medium">{formatZAR(invoice.vat_amount)}</span></div>
+            <div className="flex justify-between text-base font-bold border-t pt-2"><span>Total (incl. tax)</span><span>{formatZAR(invoice.total)}</span></div>
           </div>
         </CardContent>
       </Card>

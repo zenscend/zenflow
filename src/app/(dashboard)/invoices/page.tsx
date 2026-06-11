@@ -30,7 +30,7 @@ export default async function InvoicesPage({
   searchParams: Promise<{ status?: string; page?: string }>
 }) {
   const session = await auth()
-  const orgId = session!.user.organizationId!
+  const orgId = session!.user.organisationId!
   const { status = "", page = "1" } = await searchParams
   const pageNum = Math.max(1, parseInt(page))
   const limit = 20
@@ -38,12 +38,12 @@ export default async function InvoicesPage({
 
   // Mark overdue
   await prisma.invoice.updateMany({
-    where: { organization_id: orgId, status: "SENT", due_date: { lt: new Date() } },
+    where: { organisation_id: orgId, status: "SENT", due_date: { lt: new Date() } },
     data: { status: "OVERDUE" },
   })
 
   const where = {
-    organization_id: orgId,
+    organisation_id: orgId,
     ...(status ? { status: status as any } : {}),
   }
 

@@ -4,19 +4,45 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { Decimal } from "@prisma/client/runtime/client"
 
-const VAT_RATE = 0.15
+async function fetchTaxData(orgId: string) {
+  const taxes = await prisma.tax.findMany({
+    where: { organisation_id: orgId, is_active: true },
+    select: { id: true, rate: true },
+  })
+  const rates = new Map(taxes.map((t) => [t.id, Number(t.rate)]))
+  const exemptId = taxes.find((t) => Number(t.rate) === 0)?.id ?? null
+  return { rates, exemptId }
+}
 
-function calcTotals(items: any[]) {
+function calcTotals(items: any[], rates: Map<string, number>) {
   let subtotal = 0
   let vatAmount = 0
   const computed = items.map((item, i) => {
     const lineTotal = Number(item.quantity) * Number(item.unit_price) * (1 - Number(item.discount) / 100)
-    const vat = item.is_taxable ? lineTotal * VAT_RATE : 0
+    const taxRate = item.tax_id ? (rates.get(item.tax_id) ?? 0) : 0
+    const taxAmount = lineTotal * taxRate
     subtotal += lineTotal
-    vatAmount += vat
-    return { ...item, line_total: lineTotal, vat_amount: vat, sort_order: i }
+    vatAmount += taxAmount
+    return { ...item, line_total: lineTotal, tax_amount: taxAmount, sort_order: i }
   })
   return { computed, subtotal, vatAmount, total: subtotal + vatAmount }
+}
+
+function normaliseLineItem(li: any) {
+  const sub = li.product_line_item ?? li.custom_line_item
+  return {
+    ...li,
+    description: sub?.description ?? "",
+    unit_price: sub?.unit_price ?? 0,
+    unit_type: sub?.unit_type ?? "item",
+    product_id: li.product_line_item?.product_id ?? null,
+  }
+}
+
+const lineItemIncludes = {
+  product_line_item: true,
+  custom_line_item: true,
+  tax: { select: { id: true, name: true, rate: true } },
 }
 
 const updateSchema = z.object({
@@ -33,27 +59,43 @@ const updateSchema = z.object({
     quantity: z.coerce.number().min(0.001),
     unit_price: z.coerce.number().min(0),
     unit_type: z.string().default("item"),
-    is_taxable: z.boolean().default(true),
+    tax_id: z.string().nullable().optional(),
     discount: z.coerce.number().min(0).max(100).default(0),
   })).optional(),
 })
 
 async function getOwnedInvoice(id: string, orgId: string) {
-  return prisma.invoice.findFirst({
-    where: { id, organization_id: orgId },
+  const invoice = await prisma.invoice.findFirst({
+    where: { id, organisation_id: orgId },
     include: {
-      line_items: { orderBy: { sort_order: "asc" } },
-      customer: { select: { display_name: true, vat_number: true, address_line_1: true, address_line_2: true, city: true, province: true, postal_code: true } },
+      customer: {
+        select: {
+          display_name: true,
+          vat_number: true,
+          address_line_1: true,
+          address_line_2: true,
+          city: true,
+          province: true,
+          postal_code: true,
+        },
+      },
     },
   })
+  if (!invoice) return null
+  const rawItems = await prisma.line_item.findMany({
+    where: { source: "invoice", source_id: id },
+    orderBy: { sort_order: "asc" },
+    include: lineItemIncludes,
+  })
+  return { ...invoice, line_items: rawItems.map(normaliseLineItem) }
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!session?.user.organizationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
+  if (!session?.user.organisationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
 
   const { id } = await params
-  const invoice = await getOwnedInvoice(id, session.user.organizationId)
+  const invoice = await getOwnedInvoice(id, session.user.organisationId)
   if (!invoice) return NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 })
 
   return NextResponse.json({ data: invoice })
@@ -61,10 +103,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!session?.user.organizationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
+  if (!session?.user.organisationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
 
   const { id } = await params
-  const existing = await getOwnedInvoice(id, session.user.organizationId)
+  const existing = await prisma.invoice.findFirst({ where: { id, organisation_id: session.user.organisationId } })
   if (!existing) return NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 })
   if (existing.status !== "DRAFT") return NextResponse.json({ error: { code: "NOT_EDITABLE", message: "Only DRAFT invoices can be edited" } }, { status: 409 })
 
@@ -74,31 +116,61 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { line_items, issue_date, due_date, ...rest } = parsed.data
 
+  let exemptId: string | null = null
+  let rates = new Map<string, number>()
+  if (line_items) {
+    const taxData = await fetchTaxData(session.user.organisationId)
+    rates = taxData.rates
+    exemptId = taxData.exemptId
+    if (!exemptId) return NextResponse.json({ error: { code: "NO_EXEMPT_TAX" } }, { status: 422 })
+  }
+
   const invoice = await prisma.$transaction(async (tx: any) => {
     let totals: { subtotal: number; vatAmount: number; total: number } | undefined
 
     if (line_items) {
-      const { computed, subtotal, vatAmount, total } = calcTotals(line_items)
+      const { computed, subtotal, vatAmount, total } = calcTotals(line_items, rates)
       totals = { subtotal, vatAmount, total }
-      await tx.invoice_line_item.deleteMany({ where: { invoice_id: id } })
-      await tx.invoice_line_item.createMany({
-        data: computed.map((item) => ({
-          invoice_id: id,
-          product_id: item.product_id ?? null,
-          description: item.description,
-          quantity: new Decimal(item.quantity),
-          unit_price: new Decimal(item.unit_price),
-          unit_type: item.unit_type,
-          is_taxable: item.is_taxable,
-          discount: new Decimal(item.discount),
-          line_total: new Decimal(item.line_total),
-          vat_amount: new Decimal(item.vat_amount),
-          sort_order: item.sort_order,
-        })),
-      })
+      await tx.line_item.deleteMany({ where: { source: "invoice", source_id: id } })
+
+      for (const item of computed) {
+        const li = await tx.line_item.create({
+          data: {
+            source: "invoice",
+            source_id: id,
+            tax_id: item.tax_id || exemptId,
+            type: item.product_id ? 1 : 2,
+            quantity: new Decimal(item.quantity),
+            discount: new Decimal(item.discount),
+            line_total: new Decimal(item.line_total),
+            tax_amount: new Decimal(item.tax_amount),
+            sort_order: item.sort_order,
+          },
+        })
+        if (item.product_id) {
+          await tx.product_line_item.create({
+            data: {
+              line_item_id: li.id,
+              product_id: item.product_id,
+              description: item.description,
+              unit_price: new Decimal(item.unit_price),
+              unit_type: item.unit_type,
+            },
+          })
+        } else {
+          await tx.custom_line_item.create({
+            data: {
+              line_item_id: li.id,
+              description: item.description,
+              unit_price: new Decimal(item.unit_price),
+              unit_type: item.unit_type,
+            },
+          })
+        }
+      }
     }
 
-    return tx.invoice.update({
+    const updated = await tx.invoice.update({
       where: { id },
       data: {
         ...rest,
@@ -110,8 +182,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           total: new Decimal(totals.total),
         } : {}),
       },
-      include: { line_items: { orderBy: { sort_order: "asc" } }, customer: { select: { display_name: true } } },
+      include: { customer: { select: { display_name: true } } },
     })
+
+    const rawItems = await tx.line_item.findMany({
+      where: { source: "invoice", source_id: id },
+      orderBy: { sort_order: "asc" },
+      include: lineItemIncludes,
+    })
+
+    return { ...updated, line_items: rawItems.map(normaliseLineItem) }
   })
 
   return NextResponse.json({ data: invoice })
@@ -119,13 +199,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!session?.user.organizationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
+  if (!session?.user.organisationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
 
   const { id } = await params
-  const existing = await getOwnedInvoice(id, session.user.organizationId)
+  const existing = await prisma.invoice.findFirst({ where: { id, organisation_id: session.user.organisationId } })
   if (!existing) return NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 })
   if (existing.status !== "DRAFT") return NextResponse.json({ error: { code: "NOT_DELETABLE", message: "Only DRAFT invoices can be deleted" } }, { status: 409 })
 
-  await prisma.invoice.delete({ where: { id } })
+  await prisma.$transaction(async (tx: any) => {
+    await tx.line_item.deleteMany({ where: { source: "invoice", source_id: id } })
+    await tx.invoice.delete({ where: { id } })
+  })
+
   return NextResponse.json({ data: { success: true } })
 }

@@ -31,14 +31,14 @@ export default async function QuotesPage({
   searchParams: Promise<{ status?: string; page?: string }>
 }) {
   const session = await auth()
-  const orgId = session!.user.organizationId!
+  const orgId = session!.user.organisationId!
   const { status = "", page = "1" } = await searchParams
   const pageNum = Math.max(1, parseInt(page))
   const limit = 20
   const skip = (pageNum - 1) * limit
 
   const where = {
-    organization_id: orgId,
+    organisation_id: orgId,
     ...(status ? { status: status as any } : {}),
   }
 

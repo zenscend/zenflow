@@ -186,7 +186,7 @@ export default function QuoteDetailPage() {
                   <td className="text-right py-2">{formatZAR(item.unit_price)}</td>
                   <td className="text-right py-2">{Number(item.discount) > 0 ? `${Number(item.discount)}%` : "-"}</td>
                   <td className="text-right py-2">{formatZAR(item.line_total)}</td>
-                  <td className="text-right py-2">{item.is_taxable ? formatZAR(item.vat_amount) : "Exempt"}</td>
+                  <td className="text-right py-2">{formatZAR(item.tax_amount)}</td>
                 </tr>
               ))}
             </tbody>
@@ -198,11 +198,11 @@ export default function QuoteDetailPage() {
               <span className="font-medium">{formatZAR(quote.subtotal)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted-foreground">VAT (15%)</span>
+              <span className="text-muted-foreground">Tax</span>
               <span className="font-medium">{formatZAR(quote.vat_amount)}</span>
             </div>
             <div className="flex justify-between text-base font-bold border-t pt-2">
-              <span>Total (incl. VAT)</span>
+              <span>Total (incl. tax)</span>
               <span>{formatZAR(quote.total)}</span>
             </div>
           </div>

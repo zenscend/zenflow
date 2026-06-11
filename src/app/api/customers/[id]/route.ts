@@ -10,9 +10,6 @@ const updateSchema = z.object({
   trading_name: z.string().optional().nullable(),
   company_reg_no: z.string().optional().nullable(),
   vat_number: z.string().optional().nullable(),
-  first_name: z.string().optional().nullable(),
-  last_name: z.string().optional().nullable(),
-  id_number: z.string().optional().nullable(),
   email: z.string().email().optional().nullable().or(z.literal("")),
   phone: z.string().optional().nullable(),
   alternate_phone: z.string().optional().nullable(),
@@ -30,15 +27,15 @@ const updateSchema = z.object({
 }).partial()
 
 async function getOwnedCustomer(id: string, orgId: string) {
-  return prisma.customer.findFirst({ where: { id, organization_id: orgId } })
+  return prisma.customer.findFirst({ where: { id, organisation_id: orgId } })
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!session?.user.organizationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
+  if (!session?.user.organisationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
 
   const { id } = await params
-  const customer = await getOwnedCustomer(id, session.user.organizationId)
+  const customer = await getOwnedCustomer(id, session.user.organisationId)
   if (!customer) return NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 })
 
   return NextResponse.json({ data: customer })
@@ -46,10 +43,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!session?.user.organizationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
+  if (!session?.user.organisationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
 
   const { id } = await params
-  const existing = await getOwnedCustomer(id, session.user.organizationId)
+  const existing = await getOwnedCustomer(id, session.user.organisationId)
   if (!existing) return NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 })
 
   const body = await req.json()
@@ -62,10 +59,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!session?.user.organizationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
+  if (!session?.user.organisationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
 
   const { id } = await params
-  const existing = await getOwnedCustomer(id, session.user.organizationId)
+  const existing = await getOwnedCustomer(id, session.user.organisationId)
   if (!existing) return NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 })
 
   // Soft delete

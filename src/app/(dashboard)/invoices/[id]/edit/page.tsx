@@ -5,23 +5,21 @@ import InvoiceForm from "@/components/invoices/InvoiceForm"
 
 export default async function EditInvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  const orgId = session!.user.organizationId!
+  const orgId = session!.user.organisationId!
   const { id } = await params
 
-  const [invoice, customers, products] = await Promise.all([
-    prisma.invoice.findFirst({
-      where: { id, organization_id: orgId },
-      include: { line_items: { orderBy: { sort_order: "asc" } } },
-    }),
+  const [invoice, lineItems, customers, products] = await Promise.all([
+    prisma.invoice.findFirst({ where: { id, organisation_id: orgId } }),
+    prisma.line_item.findMany({ where: { source: "invoice", source_id: id }, orderBy: { sort_order: "asc" }, include: { product_line_item: true, custom_line_item: true } }),
     prisma.customer.findMany({
-      where: { organization_id: orgId, is_active: true },
+      where: { organisation_id: orgId, is_active: true },
       orderBy: { display_name: "asc" },
       select: { id: true, display_name: true },
     }),
     prisma.product.findMany({
-      where: { organization_id: orgId, is_active: true },
+      where: { organisation_id: orgId, is_active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, unit_price: true, unit_type: true, is_taxable: true },
+      select: { id: true, name: true, unit_price: true, unit_type: true, default_tax_id: true },
     }),
   ])
 
@@ -43,7 +41,7 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
       <InvoiceForm
         invoiceId={id}
         customers={customers}
-        products={products.map((p: { id: string; name: string; unit_price: any; unit_type: string; is_taxable: boolean }) => ({ ...p, unit_price: Number(p.unit_price) }))}
+        products={products.map((p: { id: string; name: string; unit_price: any; unit_type: string; default_tax_id: string | null }) => ({ ...p, unit_price: Number(p.unit_price) }))}
         defaultValues={{
           customer_id: invoice.customer_id,
           title: invoice.title,
@@ -52,15 +50,18 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
           payment_reference: invoice.payment_reference,
           issue_date: invoice.issue_date.toISOString().split("T")[0],
           due_date: invoice.due_date.toISOString().split("T")[0],
-          line_items: invoice.line_items.map((li: any) => ({
-            product_id: li.product_id,
-            description: li.description,
-            quantity: Number(li.quantity),
-            unit_price: Number(li.unit_price),
-            unit_type: li.unit_type,
-            is_taxable: li.is_taxable,
-            discount: Number(li.discount),
-          })),
+          line_items: lineItems.map((li: any) => {
+            const sub = li.product_line_item ?? li.custom_line_item
+            return {
+              product_id: li.product_line_item?.product_id ?? null,
+              description: sub?.description ?? "",
+              quantity: Number(li.quantity),
+              unit_price: Number(sub?.unit_price ?? 0),
+              unit_type: sub?.unit_type ?? "item",
+              tax_id: li.tax_id,
+              discount: Number(li.discount),
+            }
+          }),
         }}
       />
     </div>

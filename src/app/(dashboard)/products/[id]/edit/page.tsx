@@ -8,7 +8,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   const { id } = await params
 
   const product = await prisma.product.findFirst({
-    where: { id, organization_id: session!.user.organizationId! },
+    where: { id, organisation_id: session!.user.organisationId! },
   })
 
   if (!product) notFound()
@@ -26,7 +26,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
           description: product.description,
           unit_price: Number(product.unit_price),
           unit_type: product.unit_type,
-          is_taxable: product.is_taxable,
+          default_tax_id: product.default_tax_id,
           sku: product.sku,
         }}
       />

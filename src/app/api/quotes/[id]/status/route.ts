@@ -17,11 +17,11 @@ const statusSchema = z.object({
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
-  if (!session?.user.organizationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
+  if (!session?.user.organisationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
 
   const { id } = await params
   const quote = await prisma.quote.findFirst({
-    where: { id, organization_id: session.user.organizationId },
+    where: { id, organisation_id: session.user.organisationId },
   })
 
   if (!quote) return NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 })

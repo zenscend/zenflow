@@ -32,9 +32,6 @@ const schema = z.object({
   trading_name: z.string().optional().nullable(),
   company_reg_no: z.string().optional().nullable(),
   vat_number: z.string().optional().nullable(),
-  first_name: z.string().optional().nullable(),
-  last_name: z.string().optional().nullable(),
-  id_number: z.string().optional().nullable(),
   email: z.string().email("Invalid email").optional().nullable().or(z.literal("")),
   phone: z.string().optional().nullable(),
   alternate_phone: z.string().optional().nullable(),
@@ -142,24 +139,7 @@ export default function CustomerForm({ defaultValues, customerId }: Props) {
                 </div>
               </div>
             </>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>First name</Label>
-                  <Input {...register("first_name")} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Last name</Label>
-                  <Input {...register("last_name")} />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>SA ID number</Label>
-                <Input {...register("id_number")} placeholder="8501015009087" />
-              </div>
-            </>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 

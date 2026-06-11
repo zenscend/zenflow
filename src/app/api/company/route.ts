@@ -29,12 +29,12 @@ const updateSchema = z.object({
 
 export async function GET() {
   const session = await auth()
-  if (!session?.user.organizationId) {
+  if (!session?.user.organisationId) {
     return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
   }
 
-  const org = await prisma.organization.findUnique({
-    where: { id: session.user.organizationId },
+  const org = await prisma.organisation.findUnique({
+    where: { id: session.user.organisationId },
   })
 
   if (!org) return NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 })
@@ -44,7 +44,7 @@ export async function GET() {
 
 export async function PATCH(req: NextRequest) {
   const session = await auth()
-  if (!session?.user.organizationId) {
+  if (!session?.user.organisationId) {
     return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
   }
 
@@ -54,8 +54,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: { code: "VALIDATION_ERROR", details: parsed.error } }, { status: 400 })
   }
 
-  const org = await prisma.organization.update({
-    where: { id: session.user.organizationId },
+  const org = await prisma.organisation.update({
+    where: { id: session.user.organisationId },
     data: parsed.data,
   })
 

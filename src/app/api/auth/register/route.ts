@@ -4,7 +4,8 @@ import { z } from "zod"
 import { prisma } from "@/lib/prisma"
 
 const registerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  first_name: z.string().min(1, "First name is required"),
+  last_name: z.string().min(1, "Last name is required"),
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
 })
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const { name, email, password } = parsed.data
+    const { first_name, last_name, email, password } = parsed.data
 
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {
@@ -34,8 +35,8 @@ export async function POST(req: NextRequest) {
     const password_hash = await bcrypt.hash(password, 12)
 
     const user = await prisma.user.create({
-      data: { name, email, password_hash },
-      select: { id: true, name: true, email: true },
+      data: { first_name, last_name, email, password_hash },
+      select: { id: true, first_name: true, last_name: true, email: true },
     })
 
     return NextResponse.json({ data: user }, { status: 201 })

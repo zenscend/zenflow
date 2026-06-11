@@ -259,7 +259,7 @@ export function QuotePDF({ quote, organization }: QuotePDFProps) {
                 {Number(item.discount) > 0 ? `${Number(item.discount)}%` : "—"}
               </Text>
               <Text style={[s.tdText, s.cVat]}>
-                {item.is_taxable ? fmt(item.vat_amount) : "R 0.00"}
+                {fmt(item.tax_amount)}
               </Text>
               <Text style={[s.tdText, s.cAmount]}>{fmt(item.line_total)}</Text>
             </View>
@@ -274,7 +274,7 @@ export function QuotePDF({ quote, organization }: QuotePDFProps) {
               <Text style={s.totalsValue}>{fmt(quote.subtotal)}</Text>
             </View>
             <View style={s.totalsRow}>
-              <Text style={s.totalsLabel}>VAT</Text>
+              <Text style={s.totalsLabel}>Tax</Text>
               <Text style={s.totalsValue}>{fmt(quote.vat_amount)}</Text>
             </View>
             <View style={s.totalFinal}>
