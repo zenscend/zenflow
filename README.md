@@ -87,17 +87,6 @@ psql postgresql://postgres:postgres@localhost:5432/zenflow
 psql postgresql://postgres:postgres@localhost:5432/zenflow -c "SELECT * FROM users;"
 ```
 
----
-
-## Default Admin Credentials
-
-| Field    | Value                 |
-|----------|-----------------------|
-| Email    | `admin@zenflow.local` |
-| Password | `Admin1234!`          |
-
----
-
 ## Project Structure
 
 ```
