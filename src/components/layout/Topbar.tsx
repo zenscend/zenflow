@@ -1,7 +1,9 @@
 "use client"
 
 import { useSession, signOut } from "next-auth/react"
+import { useTheme } from "next-themes"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { LogOut, User } from "lucide-react"
+import { LogOut, Moon, Sun, User } from "lucide-react"
 
 interface TopbarProps {
   orgName?: string
@@ -18,6 +20,7 @@ interface TopbarProps {
 
 export default function Topbar({ orgName }: TopbarProps) {
   const { data: session } = useSession()
+  const { theme, setTheme } = useTheme()
 
   const fullName = [session?.user?.firstName, session?.user?.lastName].filter(Boolean).join(" ")
   const initials = fullName
@@ -25,45 +28,56 @@ export default function Topbar({ orgName }: TopbarProps) {
     : "?"
 
   return (
-    <header className="h-16 flex items-center justify-between px-6 bg-white border-b border-gray-200 shrink-0">
+    <header className="h-16 flex items-center justify-between px-6 bg-card border-b border-border shrink-0">
       <div>
         {orgName && (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground font-mono tracking-tight">
             <span className="font-medium text-foreground">{orgName}</span>
           </p>
         )}
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>
-            <div className="flex flex-col space-y-0.5">
-              <span className="text-sm font-medium">{fullName || session?.user?.email}</span>
-              <span className="text-xs text-muted-foreground">{session?.user?.email}</span>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 text-muted-foreground"
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          aria-label="Toggle theme"
+        >
+          <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+        </Button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="bg-brand/10 text-brand text-xs font-semibold font-mono">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <div className="px-2 py-1.5">
+              <p className="text-sm font-medium font-mono leading-none">{fullName || session?.user?.email}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{session?.user?.email}</p>
             </div>
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem disabled>
-            <User className="h-4 w-4 mr-2" />
-            Profile
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            onClick={() => signOut({ callbackUrl: "/login" })}
-          >
-            <LogOut className="h-4 w-4 mr-2" />
-            Sign out
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled>
+              <User className="h-4 w-4 mr-2" />
+              Profile
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
     </header>
   )
 }

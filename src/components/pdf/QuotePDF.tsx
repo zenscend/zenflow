@@ -307,6 +307,7 @@ export function QuotePDF({ quote, organization }: QuotePDFProps) {
             {organization.vat_number ? ` · VAT ${organization.vat_number}` : ""}
             {organization.company_reg_no ? ` · Reg ${organization.company_reg_no}` : ""}
           </Text>
+          <Text style={[s.footerText, { textAlign: "center" }]}>Powered by Zenscend</Text>
           <Text
             style={s.footerText}
             render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}

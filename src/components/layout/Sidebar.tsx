@@ -29,17 +29,17 @@ export default function Sidebar() {
   const pathname = usePathname()
 
   return (
-    <aside className="w-64 shrink-0 flex flex-col h-full bg-white border-r border-gray-200">
+    <aside className="w-64 shrink-0 flex flex-col h-full bg-sidebar border-r border-sidebar-border">
       {/* Logo */}
-      <div className="h-16 flex items-center gap-2 px-6 border-b border-gray-200">
-        <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center shrink-0">
-          <span className="text-primary-foreground font-bold text-sm">Z</span>
+      <div className="h-16 flex items-center gap-2 px-6 border-b border-sidebar-border">
+        <div className="h-8 w-8 rounded-md bg-brand flex items-center justify-center shrink-0">
+          <span className="text-brand-foreground font-bold text-sm font-mono">Z</span>
         </div>
-        <span className="font-semibold text-lg">ZenFlow</span>
+        <span className="font-semibold text-lg font-heading tracking-tight">ZenFlow</span>
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/")
           return (
@@ -47,22 +47,22 @@ export default function Sidebar() {
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium font-mono tracking-tight transition-colors",
                 active
-                  ? "bg-primary/10 text-primary"
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                  ? "bg-brand/10 text-brand"
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
               {label}
-              {active && <ChevronRight className="h-3 w-3 ml-auto" />}
+              {active && <ChevronRight className="h-3 w-3 ml-auto text-brand/60" />}
             </Link>
           )
         })}
       </nav>
 
       {/* Bottom */}
-      <div className="px-3 py-4 border-t border-gray-200 space-y-1">
+      <div className="px-3 pt-3 pb-2 border-t border-sidebar-border space-y-0.5">
         {bottomItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/")
           return (
@@ -70,10 +70,10 @@ export default function Sidebar() {
               key={href}
               href={href}
               className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium font-mono tracking-tight transition-colors",
                 active
-                  ? "bg-primary/10 text-primary"
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                  ? "bg-brand/10 text-brand"
+                  : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
@@ -81,6 +81,21 @@ export default function Sidebar() {
             </Link>
           )
         })}
+      </div>
+
+      {/* Powered by Zenscend */}
+      <div className="px-5 pb-4 pt-2">
+        <p className="text-[9px] font-mono uppercase tracking-widest text-sidebar-foreground/30 mb-0.5">
+          Powered by
+        </p>
+        <a
+          href="https://zenscend.co"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs font-mono font-medium text-sidebar-foreground/40 hover:text-sidebar-foreground/70 transition-colors"
+        >
+          zenscend.co
+        </a>
       </div>
     </aside>
   )

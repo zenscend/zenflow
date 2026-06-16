@@ -65,10 +65,10 @@ export default function RegisterPage() {
     <Card>
       <CardHeader className="space-y-1">
         <div className="flex items-center gap-2 mb-2">
-          <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
-            <span className="text-primary-foreground font-bold text-sm">Z</span>
+          <div className="h-8 w-8 rounded-md bg-brand flex items-center justify-center">
+            <span className="text-brand-foreground font-bold text-sm font-mono">Z</span>
           </div>
-          <span className="font-semibold text-lg">ZenFlow</span>
+          <span className="font-semibold text-lg font-heading tracking-tight">ZenFlow</span>
         </div>
         <CardTitle className="text-2xl">Create your account</CardTitle>
         <CardDescription>Start managing your quotes and invoices</CardDescription>
