@@ -70,7 +70,7 @@ export default function Topbar({ orgName }: TopbarProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={() => signOut({ callbackUrl: `${window.location.origin}/login` })}
             >
               <LogOut className="h-4 w-4 mr-2" />
               Sign out
