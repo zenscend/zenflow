@@ -7,7 +7,11 @@ export async function proxy(req: NextRequest) {
   const { nextUrl } = req
   const isPublic = PUBLIC_PATHS.some((p) => nextUrl.pathname.startsWith(p))
 
-  const token = await getToken({ req, secret: process.env.AUTH_SECRET })
+  const token = await getToken({
+    req,
+    secret: process.env.AUTH_SECRET,
+    secureCookie: req.nextUrl.protocol === "https:",
+  })
 
   // Allow public paths and static assets
   if (isPublic) {
