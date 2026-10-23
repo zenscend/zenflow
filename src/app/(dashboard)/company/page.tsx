@@ -12,6 +12,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ImageOff, Trash2, Upload } from "lucide-react"
+import { buttonVariants } from "@/lib/button-variants"
+import { cn } from "@/lib/utils"
 
 const SA_PROVINCES = [
   { value: "EASTERN_CAPE", label: "Eastern Cape" },
@@ -49,8 +52,104 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
+function LogoCard({
+  logoUrl,
+  onChange,
+}: {
+  logoUrl: string | null
+  onChange: (logoUrl: string | null) => void
+}) {
+  const [busy, setBusy] = useState(false)
+
+  async function send(init: RequestInit) {
+    setBusy(true)
+    const res = await fetch("/api/company/logo", init)
+    const body = await res.json()
+    setBusy(false)
+
+    if (!res.ok) {
+      toast.error(body.error?.message ?? "Something went wrong")
+      return false
+    }
+    onChange(body.data.logo_url)
+    return true
+  }
+
+  async function upload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+
+    const form = new FormData()
+    form.append("file", file)
+    if (await send({ method: "POST", body: form })) toast.success("Logo updated")
+  }
+
+  async function remove() {
+    if (await send({ method: "DELETE" })) toast.success("Logo removed")
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Logo</CardTitle>
+        <CardDescription>
+          Appears in the header of your quotes and invoices. PNG or JPG, max 2MB.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex items-center gap-6">
+        <div className="h-20 w-20 shrink-0 rounded-md border border-border flex items-center justify-center bg-muted/30 overflow-hidden">
+          {logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={logoUrl} alt="Company logo" className="h-full w-full object-contain" />
+          ) : (
+            <ImageOff className="h-6 w-6 text-muted-foreground/50" />
+          )}
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <label
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                busy ? "pointer-events-none opacity-50" : "cursor-pointer",
+              )}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              {logoUrl ? "Replace logo" : "Upload logo"}
+              <input
+                type="file"
+                accept="image/png,image/jpeg"
+                className="hidden"
+                onChange={upload}
+                disabled={busy}
+              />
+            </label>
+            {logoUrl && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive"
+                onClick={remove}
+                disabled={busy}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Remove
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {logoUrl ? "Shown on every document." : "No logo — your documents show no logo."}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function CompanyPage() {
   const [loading, setLoading] = useState(true)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -62,6 +161,7 @@ export default function CompanyPage() {
       .then((r) => r.json())
       .then(({ data }) => {
         if (data) {
+          setLogoUrl(data.logo_url ?? null)
           reset({
             ...data,
             default_payment_terms_days: data.default_payment_terms_days ?? 30,
@@ -96,6 +196,8 @@ export default function CompanyPage() {
         <h1 className="text-2xl font-bold">Company Settings</h1>
         <p className="text-muted-foreground text-sm mt-1">Manage your organisation profile and defaults</p>
       </div>
+
+      <LogoCard logoUrl={logoUrl} onChange={setLogoUrl} />
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Company Identity */}

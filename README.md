@@ -6,7 +6,7 @@ Revenue operations suite for quoting and invoicing — built for the South Afric
 
 - **Next.js 16** (App Router, TypeScript)
 - **Prisma v7** + PostgreSQL
-- **NextAuth.js v5 beta** (JWT, credentials)
+- **Supabase Auth** (Google OAuth + email/password, cookie sessions via `@supabase/ssr`)
 - **@react-pdf/renderer** for PDF generation
 - **pnpm** as package manager
 
@@ -20,12 +20,10 @@ pnpm install
 ```
 
 ### 2. Set up environment
-Copy `.env` and fill in your values (already configured for local dev):
-```
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/zenflow?schema=public"
-AUTH_SECRET="..."
-NEXTAUTH_URL="http://localhost:3000"
-```
+Copy `.env.example` to `.env` and fill in your Supabase project values.
+
+Google sign-in and the public `logos` storage bucket are configured in the
+Supabase dashboard, not here — see `docs/supabase-setup.md`.
 
 ### 3. Run database migrations
 ```bash
@@ -107,11 +105,11 @@ src/
     pdf/            # InvoicePDF, QuotePDF (@react-pdf/renderer)
     ui/             # Base UI + shadcn components
   lib/
-    auth.ts         # NextAuth config
+    auth.ts         # auth() session helper (Supabase Auth + profile linking)
     prisma.ts       # Prisma client singleton
     utils.ts        # Formatters, helpers
     button-variants.ts
-  middleware.ts     # Auth + org routing guards
+  proxy.ts          # Auth guard + session refresh (Next 16 renamed middleware)
 prisma/
   schema.prisma
   seed.ts

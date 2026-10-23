@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import bcrypt from "bcryptjs"
 import { z } from "zod"
+import { supabaseAuthServer } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 
 const registerSchema = z.object({
@@ -32,14 +32,24 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const password_hash = await bcrypt.hash(password, 12)
+    const supabase = await supabaseAuthServer()
+    const { data, error } = await supabase.auth.signUp({ email, password })
+
+    if (error || !data.user) {
+      return NextResponse.json(
+        { error: { code: "SIGNUP_FAILED", message: error?.message ?? "Could not create account" } },
+        { status: 400 }
+      )
+    }
 
     const user = await prisma.user.create({
-      data: { first_name, last_name, email, password_hash },
+      data: { first_name, last_name, email, auth_user_id: data.user.id },
       select: { id: true, first_name: true, last_name: true, email: true },
     })
 
-    return NextResponse.json({ data: user }, { status: 201 })
+    // No session when email confirmation is enabled on the Supabase project —
+    // the client then sends the user to /login instead of /onboarding.
+    return NextResponse.json({ data: { ...user, signedIn: Boolean(data.session) } }, { status: 201 })
   } catch {
     return NextResponse.json(
       { error: { code: "INTERNAL_ERROR", message: "Something went wrong" } },

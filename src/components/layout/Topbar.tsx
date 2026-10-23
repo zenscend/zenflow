@@ -1,6 +1,5 @@
 "use client"
 
-import { useSession, signOut } from "next-auth/react"
 import { useTheme } from "next-themes"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
@@ -16,13 +15,18 @@ import { LogOut, Moon, Sun, User } from "lucide-react"
 
 interface TopbarProps {
   orgName?: string
+  user: { firstName: string | null; lastName: string | null; email: string }
 }
 
-export default function Topbar({ orgName }: TopbarProps) {
-  const { data: session } = useSession()
+async function signOut() {
+  await fetch("/api/auth/signout", { method: "POST" })
+  window.location.href = "/login"
+}
+
+export default function Topbar({ orgName, user }: TopbarProps) {
   const { theme, setTheme } = useTheme()
 
-  const fullName = [session?.user?.firstName, session?.user?.lastName].filter(Boolean).join(" ")
+  const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ")
   const initials = fullName
     ? fullName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "?"
@@ -59,8 +63,8 @@ export default function Topbar({ orgName }: TopbarProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <div className="px-2 py-1.5">
-              <p className="text-sm font-medium font-mono leading-none">{fullName || session?.user?.email}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{session?.user?.email}</p>
+              <p className="text-sm font-medium font-mono leading-none">{fullName || user.email}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{user.email}</p>
             </div>
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled>
@@ -70,7 +74,7 @@ export default function Topbar({ orgName }: TopbarProps) {
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
-              onClick={() => signOut({ callbackUrl: `${window.location.origin}/login` })}
+              onClick={signOut}
             >
               <LogOut className="h-4 w-4 mr-2" />
               Sign out

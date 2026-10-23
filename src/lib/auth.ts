@@ -1,80 +1,118 @@
-import NextAuth from "next-auth"
-import Credentials from "next-auth/providers/credentials"
-import bcrypt from "bcryptjs"
+import { cache } from "react"
+import { cookies } from "next/headers"
+import { createServerClient } from "@supabase/ssr"
+import type { UserMetadata } from "@supabase/supabase-js"
 import { prisma } from "@/lib/prisma"
+import { splitFullName } from "@/lib/utils"
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
-  session: { strategy: "jwt" },
-  pages: {
-    signIn: "/login",
-  },
-  providers: [
-    Credentials({
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
+export interface Session {
+  user: {
+    id: string
+    email: string
+    firstName: string | null
+    lastName: string | null
+    image: string | null
+    organisationId: string | null
+    orgRole: string | null
+  }
+}
+
+/**
+ * Supabase client bound to the request cookies. Uses the *publishable* key —
+ * never the service-role client in `@/utils/supabase/server`, which bypasses RLS.
+ */
+export async function supabaseAuthServer() {
+  const store = await cookies()
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll: () => store.getAll(),
+        setAll: (cookiesToSet) => {
+          try {
+            for (const { name, value, options } of cookiesToSet) {
+              store.set(name, value, options)
+            }
+          } catch {
+            // Next 16 forbids cookie writes during render. Harmless here:
+            // proxy.ts refreshes the session and writes the cookies instead.
+          }
+        },
       },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-          include: {
-            organisations: {
-              include: { organisation: true },
-              take: 1,
-              orderBy: { joined_at: "asc" },
-            },
-          },
-        })
-
-        if (!user) return null
-
-        const valid = await bcrypt.compare(
-          credentials.password as string,
-          user.password_hash
-        )
-        if (!valid) return null
-
-        const membership = user.organisations[0]
-
-        return {
-          id: user.id,
-          firstName: user.first_name,
-          lastName: user.last_name,
-          email: user.email,
-          image: user.image,
-          organisationId: membership?.organisation_id ?? null,
-          orgRole: membership?.role ?? null,
-        }
-      },
-    }),
-  ],
-  callbacks: {
-    async jwt({ token, user, trigger, session }) {
-      if (user) {
-        token.userId = user.id
-        token.name = [
-          (user as any).firstName,
-          (user as any).lastName,
-        ]
-          .filter(Boolean)
-          .join(" ") || null
-        token.organisationId = (user as any).organisationId
-        token.orgRole = (user as any).orgRole
-      }
-      // Patch token when session.update() is called from the client (e.g. after onboarding)
-      if (trigger === "update" && session?.organisationId) {
-        token.organisationId = session.organisationId
-        token.orgRole = session.orgRole ?? token.orgRole
-      }
-      return token
     },
-    async session({ session, token }) {
-      session.user.id = token.userId as string
-      session.user.organisationId = token.organisationId as string | null
-      session.user.orgRole = token.orgRole as string | null
-      return session
-    },
+  )
+}
+
+const WITH_FIRST_MEMBERSHIP = {
+  organisations: {
+    take: 1,
+    orderBy: { joined_at: "asc" as const },
+    select: { organisation_id: true, role: true },
   },
+}
+
+/**
+ * Finds the profile row for a Supabase auth user, linking it on first sign-in.
+ *
+ * Existing (pre-Supabase) accounts are matched by email and stamped with
+ * `auth_user_id`, which keeps their id — and therefore every organisation,
+ * quote and invoice attached to it — exactly as it was.
+ */
+async function loadProfile(authUserId: string, email: string, meta: UserMetadata) {
+  const existing = await prisma.user.findFirst({
+    where: { auth_user_id: authUserId },
+    include: WITH_FIRST_MEMBERSHIP,
+  })
+  if (existing) return existing
+
+  return prisma.user.upsert({
+    where: { email },
+    update: {
+      auth_user_id: authUserId,
+      // Don't clobber a name/avatar the user already has on file.
+      image: (meta.avatar_url as string | undefined) ?? undefined,
+    },
+    create: {
+      email,
+      auth_user_id: authUserId,
+      ...splitFullName(meta.full_name ?? meta.name),
+      image: (meta.avatar_url as string | undefined) ?? null,
+    },
+    include: WITH_FIRST_MEMBERSHIP,
+  })
+}
+
+/**
+ * The current session, or null. Shape is deliberately unchanged from the
+ * NextAuth version this replaced so every existing call site still works.
+ *
+ * `cache()` memoises it for the duration of one render/request, so a page that
+ * calls `auth()` several times still does one JWT verification and one query.
+ */
+export const auth = cache(async (): Promise<Session | null> => {
+  const supabase = await supabaseAuthServer()
+
+  // getClaims() verifies the JWT locally against the project's public signing
+  // key (and refreshes it when near expiry), so this is not a round-trip to
+  // the auth server the way getUser() would be.
+  const { data } = await supabase.auth.getClaims()
+  const claims = data?.claims
+  if (!claims?.sub || !claims.email) return null
+
+  const profile = await loadProfile(claims.sub, claims.email, claims.user_metadata ?? {})
+  const membership = profile.organisations[0]
+
+  return {
+    user: {
+      id: profile.id,
+      email: profile.email,
+      firstName: profile.first_name,
+      lastName: profile.last_name,
+      image: profile.image,
+      organisationId: membership?.organisation_id ?? null,
+      orgRole: membership?.role ?? null,
+    },
+  }
 })

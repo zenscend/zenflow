@@ -28,3 +28,12 @@ export function addDays(date: Date, days: number): Date {
   result.setDate(result.getDate() + days)
   return result
 }
+
+/** Splits a Google `full_name` into our first/last name columns. */
+export function splitFullName(fullName: unknown): {
+  first_name: string | null
+  last_name: string | null
+} {
+  const [first, ...rest] = String(fullName ?? "").trim().split(/\s+/)
+  return { first_name: first || null, last_name: rest.join(" ") || null }
+}
