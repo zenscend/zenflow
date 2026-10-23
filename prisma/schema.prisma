@@ -134,10 +134,11 @@ model tax {
 
 model user {
   id             String      @id @default(uuid())
+  auth_user_id   String?     @unique // supabase auth.users.id — set on first sign-in
   first_name     String?
   last_name      String?
   email          String      @unique
-  password_hash  String
+  password_hash  String?     // legacy bcrypt hash; nulled once migrated to supabase auth
   email_verified DateTime?
   image          String?
   role           global_role @default(USER)

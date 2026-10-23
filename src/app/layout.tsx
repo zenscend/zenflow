@@ -1,7 +1,6 @@
 import type { Metadata } from "next"
 import { Geist, IBM_Plex_Mono } from "next/font/google"
 import "./globals.css"
-import AuthProvider from "@/components/layout/AuthProvider"
 import { ThemeProvider } from "@/components/providers/ThemeProvider"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
@@ -31,12 +30,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-full bg-background font-sans">
         <ThemeProvider>
-          <AuthProvider>
-            <TooltipProvider>
-              {children}
-              <Toaster richColors position="top-right" />
-            </TooltipProvider>
-          </AuthProvider>
+          <TooltipProvider>
+            {children}
+            <Toaster richColors position="top-right" />
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>

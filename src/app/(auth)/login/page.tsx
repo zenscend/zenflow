@@ -4,12 +4,13 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { signIn } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import GoogleButton from "@/components/auth/GoogleButton"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 
 const loginSchema = z.object({
@@ -28,13 +29,13 @@ export default function LoginPage() {
 
   async function onSubmit(data: LoginForm) {
     setError(null)
-    const result = await signIn("credentials", {
-      email: data.email,
-      password: data.password,
-      redirect: false,
+    const res = await fetch("/api/auth/signin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
     })
 
-    if (result?.error) {
+    if (!res.ok) {
       setError("Invalid email or password")
       return
     }
@@ -53,8 +54,16 @@ export default function LoginPage() {
           <span className="font-semibold text-lg font-heading tracking-tight">ZenFlow</span>
         </div>
         <CardTitle className="text-2xl">Sign in</CardTitle>
-        <CardDescription>Enter your email and password to access your account</CardDescription>
+        <CardDescription>Sign in to access your account</CardDescription>
       </CardHeader>
+      <CardContent className="space-y-4">
+        <GoogleButton />
+        <div className="flex items-center gap-3">
+          <Separator className="flex-1" />
+          <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground/60">or</span>
+          <Separator className="flex-1" />
+        </div>
+      </CardContent>
       <form onSubmit={handleSubmit(onSubmit)}>
         <CardContent className="space-y-4">
           {error && (

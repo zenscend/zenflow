@@ -1,45 +1,60 @@
+import { createServerClient } from "@supabase/ssr"
 import { NextRequest, NextResponse } from "next/server"
-import { getToken } from "next-auth/jwt"
 
-const PUBLIC_PATHS = ["/login", "/register", "/api/auth"]
+const PUBLIC_PATHS = ["/login", "/register", "/auth/callback", "/api/auth"]
 
 export async function proxy(req: NextRequest) {
-  const { nextUrl } = req
-  const isPublic = PUBLIC_PATHS.some((p) => nextUrl.pathname.startsWith(p))
+  let res = NextResponse.next({ request: req })
 
-  const token = await getToken({
-    req,
-    secret: process.env.AUTH_SECRET,
-    secureCookie: req.nextUrl.protocol === "https:",
-  })
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    {
+      cookies: {
+        getAll: () => req.cookies.getAll(),
+        setAll: (cookiesToSet, headers) => {
+          for (const { name, value } of cookiesToSet) req.cookies.set(name, value)
+          res = NextResponse.next({ request: req })
+          for (const { name, value, options } of cookiesToSet) {
+            res.cookies.set(name, value, options)
+          }
+          // Keeps a refreshed session out of CDN caches.
+          for (const [key, value] of Object.entries(headers)) res.headers.set(key, value)
+        },
+      },
+    },
+  )
 
-  // Allow public paths and static assets
-  if (isPublic) {
-    // Redirect already-authenticated users away from login/register
-    if (token && !nextUrl.pathname.startsWith("/api/auth")) {
-      return NextResponse.redirect(new URL("/dashboard", nextUrl))
+  // Verifies the JWT and refreshes it when near expiry, writing the new cookies
+  // onto `res` — server components can't do that during render. This is an
+  // optimistic check only; every API route and page re-checks via auth().
+  const { data } = await supabase.auth.getClaims()
+  const signedIn = Boolean(data?.claims)
+
+  const { pathname } = req.nextUrl
+
+  // Carry any refreshed cookies over so a redirect doesn't drop the new session.
+  const redirect = (to: string) => {
+    const next = NextResponse.redirect(new URL(to, req.nextUrl))
+    for (const cookie of res.cookies.getAll()) next.cookies.set(cookie)
+    return next
+  }
+
+  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
+    if (signedIn && (pathname === "/login" || pathname === "/register")) {
+      return redirect("/dashboard")
     }
-    return NextResponse.next()
+    return res
   }
 
-  // No session → login
-  if (!token) {
-    return NextResponse.redirect(new URL("/login", nextUrl))
+  if (!signedIn) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
+    }
+    return redirect("/login")
   }
 
-  const isApi = nextUrl.pathname.startsWith("/api/")
-
-  // Authenticated but no org → onboarding (skip for API routes — they handle auth themselves)
-  if (!token.organisationId && nextUrl.pathname !== "/onboarding" && !isApi) {
-    return NextResponse.redirect(new URL("/onboarding", nextUrl))
-  }
-
-  // Has org but trying to access onboarding → dashboard
-  if (token.organisationId && nextUrl.pathname === "/onboarding") {
-    return NextResponse.redirect(new URL("/dashboard", nextUrl))
-  }
-
-  return NextResponse.next()
+  return res
 }
 
 export const config = {

@@ -4,7 +4,6 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
-import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,7 +19,6 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 export default function OnboardingPage() {
-  const { update } = useSession()
   const [error, setError] = useState<string | null>(null)
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
@@ -42,8 +40,7 @@ export default function OnboardingPage() {
       return
     }
 
-    // Patch the JWT cookie so the new organisationId is included, then hard-reload
-    await update({ organisationId: body.data.organisationId, orgRole: "OWNER" })
+    // auth() reads the membership from the database, so a reload is all it takes
     window.location.href = "/dashboard"
   }
 

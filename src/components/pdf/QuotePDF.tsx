@@ -4,8 +4,7 @@ import {
   Text,
   View,
   StyleSheet,
-  Svg,
-  Path,
+  Image,
 } from "@react-pdf/renderer"
 
 // ── Palette ────────────────────────────────────────────────────────────────
@@ -34,7 +33,9 @@ const s = StyleSheet.create({
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    // Centred so the logo and the document title share a vertical axis
+    // whatever the logo's aspect ratio.
+    alignItems: "center",
     marginBottom: 22,
   },
   docTitle: {
@@ -43,6 +44,9 @@ const s = StyleSheet.create({
     color: C.black,
     letterSpacing: 0.5,
   },
+  // Generous box so wordmarks and logos with embedded text stay legible;
+  // contain preserves aspect ratio, right-aligned to sit flush with the margin.
+  logo: { width: 150, height: 68, objectFit: "contain", objectPositionX: "100%" },
 
   // Divider
   divider: { borderBottomWidth: 0.5, borderBottomColor: C.border },
@@ -145,21 +149,6 @@ function fmtDate(d: any): string {
   return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
 }
 
-// ── Zenscend Z-mark ────────────────────────────────────────────────────────
-const ICON_PATH =
-  "M23.29,48.35c0,6.8,0,13.59,0,20.39h6.78v-6.78h6.78v-6.78h6.78v-6.83h-20.36Z" +
-  "M40.26,21.25l-16.96,13.57h47.5c0,4.53,0,9.06,0,13.58-2.27,0-4.53-.01-6.8-.02" +
-  "v6.78h-6.78v6.78h-6.78v6.78h20.32v2.4c.02,1.44.03,2.88.05,4.32v6.86" +
-  "c4.52-5.65,9.05-11.31,13.57-16.96V21.25h-44.11Z"
-
-function ZenscendMark({ size = 42 }: { size?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="16 18 72 76">
-      <Path d={ICON_PATH} fill="#000000" fillRule="evenodd" />
-    </Svg>
-  )
-}
-
 // ── Component ────────────────────────────────────────────────────────────────
 interface QuotePDFProps {
   quote: any
@@ -188,7 +177,9 @@ export function QuotePDF({ quote, organization }: QuotePDFProps) {
         {/* ── Header ─────────────────────────────────────────────────── */}
         <View style={s.header}>
           <Text style={s.docTitle}>QUOTATION</Text>
-          <ZenscendMark size={44} />
+          {organization.logo_url ? (
+            <Image src={organization.logo_url} style={s.logo} />
+          ) : null}
         </View>
 
         <View style={s.divider} />
