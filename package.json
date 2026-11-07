@@ -7,7 +7,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint",
-    "check": "tsx src/lib/parsers.check.ts",
+    "check": "tsx src/lib/parsers.check.ts && tsx src/lib/doc-number.check.ts",
     "db:seed": "dotenv -e .env -- tsx prisma/seed.ts"
   },
   "dependencies": {

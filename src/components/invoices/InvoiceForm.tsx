@@ -118,8 +118,9 @@ export default function InvoiceForm({ customers, products, defaultValues, invoic
       router.push(`/invoices/${body.data.id}`)
       router.refresh()
     } else {
-      const body = await res.json()
-      toast.error(body.error?.message ?? "Something went wrong")
+      // A 500 from Next has no body at all — don't crash parsing it.
+      const body = await res.json().catch(() => null)
+      toast.error(body?.error?.message ?? `Request failed (${res.status})`)
     }
   }
 

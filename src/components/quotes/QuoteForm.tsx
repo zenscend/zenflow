@@ -127,8 +127,9 @@ export default function QuoteForm({ customers, products, defaultValues, quoteId 
       router.push(`/quotes/${body.data.id}`)
       router.refresh()
     } else {
-      const body = await res.json()
-      toast.error(body.error?.message ?? "Something went wrong")
+      // A 500 from Next has no body at all — don't crash parsing it.
+      const body = await res.json().catch(() => null)
+      toast.error(body?.error?.message ?? `Request failed (${res.status})`)
     }
   }
 
