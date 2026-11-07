@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withErrors } from "@/lib/api"
+import { nextDocNumber } from "@/lib/doc-number"
 import { addDays } from "@/lib/utils"
 import { Decimal } from "@prisma/client/runtime/client"
 
@@ -90,7 +92,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data: quotes, meta: { page, limit, total } })
 }
 
-export async function POST(req: NextRequest) {
+async function createQuote(req: NextRequest) {
   const session = await auth()
   if (!session?.user.organisationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
 
@@ -110,13 +112,7 @@ export async function POST(req: NextRequest) {
   const { computed, subtotal, vatAmount, total } = calcTotals(line_items, rates)
 
   const quote = await prisma.$transaction(async (tx: any) => {
-    const org = await tx.organisation.update({
-      where: { id: session.user.organisationId! },
-      data: { next_quote_no: { increment: 1 } },
-      select: { next_quote_no: true, quote_prefix: true, default_quote_valid_days: true },
-    })
-
-    const quoteNumber = `${org.quote_prefix}-${String(org.next_quote_no - 1).padStart(4, "0")}`
+    const { org, number: quoteNumber } = await nextDocNumber(tx, session.user.organisationId!, "quote")
     const issueDate = issue_date ? new Date(issue_date) : new Date()
     const expiryDate = expiry_date
       ? new Date(expiry_date)
@@ -186,3 +182,5 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ data: quote }, { status: 201 })
 }
+
+export const POST = withErrors(createQuote)

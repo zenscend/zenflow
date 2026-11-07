@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { withErrors } from "@/lib/api"
+import { nextDocNumber } from "@/lib/doc-number"
 import { addDays } from "@/lib/utils"
 
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function convertQuote(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
   if (!session?.user.organisationId) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 })
 
@@ -26,13 +28,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   })
 
   const invoice = await prisma.$transaction(async (tx: any) => {
-    const org = await tx.organisation.update({
-      where: { id: session.user.organisationId! },
-      data: { next_invoice_no: { increment: 1 } },
-      select: { next_invoice_no: true, invoice_prefix: true, default_payment_terms_days: true },
-    })
-
-    const invoiceNumber = `${org.invoice_prefix}-${String(org.next_invoice_no - 1).padStart(4, "0")}`
+    const { org, number: invoiceNumber } = await nextDocNumber(tx, session.user.organisationId!, "invoice")
     const issueDate = new Date()
     const dueDate = addDays(issueDate, org.default_payment_terms_days)
 
@@ -101,3 +97,5 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   return NextResponse.json({ data: invoice }, { status: 201 })
 }
+
+export const POST = withErrors(convertQuote)
