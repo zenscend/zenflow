@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { appendAmendmentNote, isInvoiceEditable } from "@/lib/utils"
 import { Decimal } from "@prisma/client/runtime/client"
 
 async function fetchTaxData(orgId: string) {
@@ -108,7 +109,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
   const existing = await prisma.invoice.findFirst({ where: { id, organisation_id: session.user.organisationId } })
   if (!existing) return NextResponse.json({ error: { code: "NOT_FOUND" } }, { status: 404 })
-  if (existing.status !== "DRAFT") return NextResponse.json({ error: { code: "NOT_EDITABLE", message: "Only DRAFT invoices can be edited" } }, { status: 409 })
+  if (!isInvoiceEditable(existing.status)) return NextResponse.json({ error: { code: "NOT_EDITABLE", message: `${existing.status} invoices cannot be edited` } }, { status: 409 })
 
   const body = await req.json()
   const parsed = updateSchema.safeParse(body)
@@ -127,10 +128,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const invoice = await prisma.$transaction(async (tx: any) => {
     let totals: { subtotal: number; vatAmount: number; total: number } | undefined
+    let amendmentNote: string | undefined
 
     if (line_items) {
       const { computed, subtotal, vatAmount, total } = calcTotals(line_items, rates)
       totals = { subtotal, vatAmount, total }
+
+      // An invoice that has already gone out is being overwritten, so record
+      // the move. internal_notes never reaches the PDF, only `notes` does.
+      // ponytail: triggers on a changed total or line count — a same-total,
+      // same-count description edit goes unlogged. Diff the lines if needed.
+      if (existing.status !== "DRAFT") {
+        const prevCount = await tx.line_item.count({ where: { source: "invoice", source_id: id } })
+        const r2 = (n: number) => Math.round(n * 100) / 100
+        if (r2(total) !== r2(Number(existing.total)) || computed.length !== prevCount) {
+          amendmentNote = appendAmendmentNote(
+            // The form may be rewriting internal_notes in the same save.
+            rest.internal_notes !== undefined ? rest.internal_notes : existing.internal_notes,
+            Number(existing.total),
+            total,
+          )
+        }
+      }
+
       await tx.line_item.deleteMany({ where: { source: "invoice", source_id: id } })
 
       for (const item of computed) {
@@ -181,6 +201,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           vat_amount: new Decimal(totals.vatAmount),
           total: new Decimal(totals.total),
         } : {}),
+        // After ...rest, so the trail survives a save that also edits the notes.
+        ...(amendmentNote !== undefined ? { internal_notes: amendmentNote } : {}),
       },
       include: { customer: { select: { display_name: true } } },
     })

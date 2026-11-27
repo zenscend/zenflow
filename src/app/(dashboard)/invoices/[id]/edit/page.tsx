@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
+import { isInvoiceEditable } from "@/lib/utils"
 import InvoiceForm from "@/components/invoices/InvoiceForm"
 
 export default async function EditInvoicePage({ params }: { params: Promise<{ id: string }> }) {
@@ -24,20 +25,28 @@ export default async function EditInvoicePage({ params }: { params: Promise<{ id
   ])
 
   if (!invoice) notFound()
-  if (invoice.status !== "DRAFT") {
+  if (!isInvoiceEditable(invoice.status)) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Only DRAFT invoices can be edited</p>
+        <p className="text-muted-foreground">{invoice.status} invoices cannot be edited</p>
       </div>
     )
   }
 
+  const alreadySent = invoice.status !== "DRAFT"
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Edit Invoice</h1>
+        <h1 className="text-2xl font-bold">{alreadySent ? "Amend Invoice" : "Edit Invoice"}</h1>
         <p className="text-muted-foreground text-sm mt-1">{invoice.invoice_number}</p>
       </div>
+      {alreadySent && (
+        <p className="text-sm rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          This invoice has already been sent to the customer. Saving changes it in
+          place — re-send the PDF so they have the corrected copy.
+        </p>
+      )}
       <InvoiceForm
         invoiceId={id}
         customers={customers}
