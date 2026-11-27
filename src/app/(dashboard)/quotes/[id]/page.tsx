@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { buttonVariants } from "@/lib/button-variants"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { formatZAR, formatDate } from "@/lib/utils"
+import { formatZAR, formatDate, isQuoteEditable } from "@/lib/utils"
 import { ArrowLeft, Download, Send, CheckCircle, XCircle, RefreshCw, Pencil } from "lucide-react"
 
 const STATUS_COLORS: Record<string, string> = {
@@ -65,7 +65,7 @@ export default function QuoteDetailPage() {
   if (!quote) return <div className="text-center py-12 text-muted-foreground">Quote not found</div>
 
   const { status } = quote
-  const canEdit = status === "DRAFT"
+  const canEdit = isQuoteEditable(status, quote.converted_to_invoice_id)
   const canSend = status === "DRAFT"
   const canAccept = status === "SENT"
   const canDecline = status === "SENT"
@@ -94,7 +94,7 @@ export default function QuoteDetailPage() {
         {/* Actions */}
         <div className="flex flex-wrap gap-2 justify-end">
           {canEdit && (
-            <Link href={`/quotes/${id}/edit`} className={buttonVariants({ variant: "outline", size: "sm" })}><Pencil className="h-4 w-4 mr-1" /> Edit</Link>
+            <Link href={`/quotes/${id}/edit`} className={buttonVariants({ variant: "outline", size: "sm" })}><Pencil className="h-4 w-4 mr-1" /> {status === "DRAFT" ? "Edit" : "Amend"}</Link>
           )}
           {canSend && (
             <Button variant="outline" size="sm" onClick={() => updateStatus("SENT")}>
@@ -213,6 +213,15 @@ export default function QuoteDetailPage() {
         <Card>
           <CardHeader><CardTitle className="text-base">Notes</CardTitle></CardHeader>
           <CardContent><p className="text-sm whitespace-pre-wrap">{quote.notes}</p></CardContent>
+        </Card>
+      )}
+
+      {/* Carries the amendment trail, so "why did this total change?" is answerable
+          without opening the edit form. Never printed on the customer's PDF. */}
+      {quote.internal_notes && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Internal notes</CardTitle></CardHeader>
+          <CardContent><p className="text-sm whitespace-pre-wrap text-muted-foreground">{quote.internal_notes}</p></CardContent>
         </Card>
       )}
     </div>

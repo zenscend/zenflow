@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { notFound } from "next/navigation"
+import { isQuoteEditable } from "@/lib/utils"
 import QuoteForm from "@/components/quotes/QuoteForm"
 
 export default async function EditQuotePage({ params }: { params: Promise<{ id: string }> }) {
@@ -24,20 +25,32 @@ export default async function EditQuotePage({ params }: { params: Promise<{ id: 
   ])
 
   if (!quote) notFound()
-  if (quote.status !== "DRAFT") {
+  if (!isQuoteEditable(quote.status, quote.converted_to_invoice_id)) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Only DRAFT quotes can be edited</p>
+        <p className="text-muted-foreground">
+          {quote.converted_to_invoice_id
+            ? "Quotes converted to an invoice cannot be edited"
+            : `${quote.status} quotes cannot be edited`}
+        </p>
       </div>
     )
   }
 
+  const alreadySent = quote.status !== "DRAFT"
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Edit Quote</h1>
+        <h1 className="text-2xl font-bold">{alreadySent ? "Amend Quote" : "Edit Quote"}</h1>
         <p className="text-muted-foreground text-sm mt-1">{quote.quote_number}</p>
       </div>
+      {alreadySent && (
+        <p className="text-sm rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+          This quote has already been sent to the customer. Saving changes it in
+          place — re-send the PDF so they have the corrected copy.
+        </p>
+      )}
       <QuoteForm
         quoteId={id}
         customers={customers}

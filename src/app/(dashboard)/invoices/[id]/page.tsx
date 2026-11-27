@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { formatZAR, formatDate } from "@/lib/utils"
+import { formatZAR, formatDate, isInvoiceEditable } from "@/lib/utils"
 import { ArrowLeft, Download, Send, CheckCircle, XCircle, Pencil } from "lucide-react"
 
 const STATUS_COLORS: Record<string, string> = {
@@ -61,7 +61,7 @@ export default function InvoiceDetailPage() {
   if (!invoice) return <div className="text-center py-12 text-muted-foreground">Invoice not found</div>
 
   const { status } = invoice
-  const canEdit = status === "DRAFT"
+  const canEdit = isInvoiceEditable(status)
   const canSend = status === "DRAFT"
   const canMarkPaid = ["SENT", "OVERDUE"].includes(status)
   const canCancel = ["SENT", "OVERDUE"].includes(status)
@@ -93,7 +93,7 @@ export default function InvoiceDetailPage() {
 
         <div className="flex flex-wrap gap-2 justify-end">
           {canEdit && (
-            <Link href={`/invoices/${id}/edit`} className={buttonVariants({ variant: "outline", size: "sm" })}><Pencil className="h-4 w-4 mr-1" /> Edit</Link>
+            <Link href={`/invoices/${id}/edit`} className={buttonVariants({ variant: "outline", size: "sm" })}><Pencil className="h-4 w-4 mr-1" /> {status === "DRAFT" ? "Edit" : "Amend"}</Link>
           )}
           {canSend && (
             <Button variant="outline" size="sm" onClick={() => updateStatus("SENT")}>
@@ -230,6 +230,15 @@ export default function InvoiceDetailPage() {
         <Card>
           <CardHeader><CardTitle className="text-base">Notes</CardTitle></CardHeader>
           <CardContent><p className="text-sm whitespace-pre-wrap">{invoice.notes}</p></CardContent>
+        </Card>
+      )}
+
+      {/* Carries the amendment trail, so "why did this total change?" is answerable
+          without opening the edit form. Never printed on the customer's PDF. */}
+      {invoice.internal_notes && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">Internal notes</CardTitle></CardHeader>
+          <CardContent><p className="text-sm whitespace-pre-wrap text-muted-foreground">{invoice.internal_notes}</p></CardContent>
         </Card>
       )}
     </div>
