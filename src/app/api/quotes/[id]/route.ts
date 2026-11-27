@@ -56,7 +56,7 @@ const updateSchema = z.object({
     product_id: z.string().optional().nullable(),
     description: z.string().min(1),
     quantity: z.coerce.number().min(0.001),
-    unit_price: z.coerce.number().min(0),
+    unit_price: z.coerce.number(), // negative = credit line
     unit_type: z.string().default("item"),
     tax_id: z.string().nullable().optional(),
     discount: z.coerce.number().min(0).max(100).default(0),
