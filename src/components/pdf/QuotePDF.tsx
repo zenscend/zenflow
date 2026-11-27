@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Image,
 } from "@react-pdf/renderer"
+import { formatRand as fmt } from "@/lib/utils"
 
 // ── Palette ────────────────────────────────────────────────────────────────
 const C = {
@@ -141,10 +142,6 @@ const s = StyleSheet.create({
 })
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-function fmt(v: any): string {
-  const n = typeof v === "object" && v !== null && "toNumber" in v ? v.toNumber() : Number(v)
-  return "R " + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-}
 function fmtDate(d: any): string {
   return new Date(d).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" })
 }

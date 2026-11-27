@@ -64,6 +64,17 @@ async function main() {
   assert.equal((await nextDocNumber(tx, "org-1", "invoice")).number, "INV-0006")
   assert.equal(tx.org.next_invoice_no, 7)
 
+  // MSS migration: the counter is seeded to 1683 to continue the run from the
+  // Excel sheets (which ended at 1682). The org has no invoices yet, so the
+  // floor is 0 and the seeded counter must win.
+  tx = stubTx(1683, [], "invoice")
+  assert.equal((await nextDocNumber(tx, "org-1", "invoice")).number, "INV-1683")
+  assert.equal(tx.org.next_invoice_no, 1684)
+
+  // And the run continues from there once the first one exists.
+  tx = stubTx(1684, ["INV-1683"], "invoice")
+  assert.equal((await nextDocNumber(tx, "org-1", "invoice")).number, "INV-1684")
+
   console.log("doc-number.check: ok")
 }
 

@@ -20,7 +20,7 @@ const lineItemSchema = z.object({
   product_id: z.string().optional().nullable(),
   description: z.string().min(1, "Required"),
   quantity: z.coerce.number().min(0.001),
-  unit_price: z.coerce.number().min(0),
+  unit_price: z.coerce.number(), // negative = credit line
   unit_type: z.string().default("item"),
   tax_id: z.string().nullable().optional(),
   discount: z.coerce.number().min(0).max(100).default(0),
@@ -199,7 +199,7 @@ export default function InvoiceForm({ customers, products, defaultValues, invoic
                 <Input type="number" step="0.001" min="0" placeholder="Qty" {...register(`line_items.${index}.quantity`)} />
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">R</span>
-                  <Input type="number" step="0.01" min="0" className="pl-7" placeholder="0.00" {...register(`line_items.${index}.unit_price`)} />
+                  <Input type="number" step="0.01" className="pl-7" placeholder="0.00" {...register(`line_items.${index}.unit_price`)} />
                 </div>
                 <Input type="number" step="0.01" min="0" max="100" placeholder="0" {...register(`line_items.${index}.discount`)} />
                 <Select

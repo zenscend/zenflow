@@ -4,7 +4,7 @@
  */
 import assert from "node:assert/strict"
 import { LOGOS_BUCKET, logoStoragePath } from "@/lib/storage"
-import { splitFullName } from "@/lib/utils"
+import { formatRand, splitFullName } from "@/lib/utils"
 
 const base = `https://ref.supabase.co/storage/v1/object/public/${LOGOS_BUCKET}/`
 
@@ -29,5 +29,17 @@ assert.deepEqual(splitFullName("Thabo"), { first_name: "Thabo", last_name: null 
 // Google can omit the name entirely; columns are nullable, so stay null.
 assert.deepEqual(splitFullName(undefined), { first_name: null, last_name: null })
 assert.deepEqual(splitFullName("   "), { first_name: null, last_name: null })
+
+// Credit lines (e.g. GD6 on INV-1687) print as a minus on the PDF. The sign
+// goes before the R, and must never appear on an amount that rounds to zero.
+assert.equal(formatRand(35000), "R 35,000.00")
+assert.equal(formatRand(-35000), "-R 35,000.00")
+assert.equal(formatRand(0), "R 0.00")
+assert.equal(formatRand(-0.001), "R 0.00")
+assert.equal(formatRand(-1000000), "-R 1,000,000.00")
+assert.equal(formatRand(-1234.5), "-R 1,234.50")
+assert.equal(formatRand("694.40"), "R 694.40")
+// Prisma hands these over as Decimal, not number.
+assert.equal(formatRand({ toNumber: () => -35000 }), "-R 35,000.00")
 
 console.log("parsers.check: ok")
